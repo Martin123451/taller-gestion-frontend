@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { useAuth } from '../contexts/AppContext';
-import marchantBikeLogo from 'figma:asset/38a2b67a52edeca0685a33b774485cbda0e44d59.png';
+import marchantBikeLogo from "../assets/logo.png";
 
 export default function AuthLogin() {
   const { login } = useAuth();

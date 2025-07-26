@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useAuth } from '../contexts/AppContext';
 import KanbanBoard from './KanbanBoard';
 import AdminDashboard from './AdminDashboard';
-import marchantBikeLogo from 'figma:asset/38a2b67a52edeca0685a33b774485cbda0e44d59.png';
+import marchantBikeLogo from "../assets/logo.png";
 
 export default function Layout() {
   const { user, logout } = useAuth();
