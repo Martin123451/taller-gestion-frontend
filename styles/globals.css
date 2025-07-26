@@ -1,7 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@custom-variant dark (&:is(.dark *));
+
 
 :root {
   --font-size: 14px;
@@ -97,62 +97,17 @@
   --marchant-red-dark: #dc2626;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  
-  /* Marchant Bike brand colors */
-  --color-marchant-green: var(--marchant-green);
-  --color-marchant-green-light: var(--marchant-green-light);
-  --color-marchant-green-dark: var(--marchant-green-dark);
-  --color-marchant-red: var(--marchant-red);
-  --color-marchant-red-light: var(--marchant-red-light);
-  --color-marchant-red-dark: var(--marchant-red-dark);
-}
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    /* En lugar de @apply, usamos CSS normal con las variables del tema */
+    border-color: var(--border);
   }
 
   body {
-    @apply bg-background text-foreground;
+    /* Hacemos lo mismo para el body */
+    background-color: var(--background);
+    color: var(--foreground);
   }
 }
 
@@ -218,26 +173,26 @@ html {
 /* Marchant Bike custom utility classes */
 @layer utilities {
   .bg-marchant-green {
-    background-color: var(--color-marchant-green);
+    background-color: var(--marchant-green);
   }
-  
+
   .bg-marchant-green-light {
-    background-color: var(--color-marchant-green-light);
+    background-color: var(--marchant-green-light);
   }
-  
+
   .bg-marchant-red {
-    background-color: var(--color-marchant-red);
+    background-color: var(--marchant-red);
   }
-  
+
   .text-marchant-green {
-    color: var(--color-marchant-green);
+    color: var(--marchant-green);
   }
-  
+
   .text-marchant-red {
-    color: var(--color-marchant-red);
+    color: var(--marchant-red);
   }
-  
+
   .border-marchant-green {
-    border-color: var(--color-marchant-green);
+    border-color: var(--marchant-green);
   }
 }
