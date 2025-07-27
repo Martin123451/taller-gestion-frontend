@@ -21,6 +21,13 @@ export const mockUsers: User[] = [
     email: 'ana@marchantbike.com',
     role: 'mechanic',
     createdAt: new Date('2024-02-01')
+  },
+  {
+    id: 'mechanic-3',
+    name: 'Hector Marchant',
+    email: 'hector@marchantbike.com',
+    role: 'mechanic',
+    createdAt: new Date('2024-07-25')
   }
 ];
 

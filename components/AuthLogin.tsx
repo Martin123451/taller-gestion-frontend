@@ -1,19 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { useAuth } from '../contexts/AppContext';
-import marchantBikeLogo from "../assets/logo.png";
+import marchantBikeLogo from '../assets/logo.png'; // Asegúrate que la ruta al logo sea correcta
+import MechanicSelection from './MechanicSelection'; // Importamos el nuevo componente
 
 export default function AuthLogin() {
   const { login } = useAuth();
+  const [view, setView] = useState<'role' | 'mechanic'>('role');
 
   const handleAdminLogin = () => {
     login('admin@marchantbike.com', 'password');
   };
 
-  const handleMechanicLogin = () => {
-    login('miguel@marchantbike.com', 'password');
-  };
+  if (view === 'mechanic') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-marchant-green-light to-marchant-red-light p-4">
+        <MechanicSelection onLogin={login} onBack={() => setView('role')} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-marchant-green-light to-marchant-red-light p-4">
@@ -32,7 +38,7 @@ export default function AuthLogin() {
           <div className="text-center mb-6">
             <p className="text-muted-foreground">Selecciona tu rol para acceder al sistema</p>
           </div>
-          
+
           <Button 
             onClick={handleAdminLogin}
             className="w-full h-14 bg-marchant-green hover:bg-marchant-green-dark text-white text-lg shadow-lg hover:shadow-xl transition-all duration-200"
@@ -46,9 +52,9 @@ export default function AuthLogin() {
               </div>
             </div>
           </Button>
-          
+
           <Button 
-            onClick={handleMechanicLogin}
+            onClick={() => setView('mechanic')} // Cambiamos la acción para mostrar el selector
             className="w-full h-14 bg-marchant-red hover:bg-marchant-red-dark text-white text-lg shadow-lg hover:shadow-xl transition-all duration-200"
             size="lg"
           >
@@ -60,7 +66,7 @@ export default function AuthLogin() {
               </div>
             </div>
           </Button>
-          
+
           <div className="mt-8 pt-4 border-t text-center">
             <p className="text-xs text-muted-foreground">
               Sistema de gestión para talleres de bicicletas

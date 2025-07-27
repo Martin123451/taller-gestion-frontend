@@ -92,6 +92,7 @@ export interface WorkOrder {
 
 export interface AppState {
   currentUser: User | null;
+  users: User[]; // <-- LÍNEA AÑADIDA
   clients: Client[];
   bicycles: Bicycle[];
   workOrders: WorkOrder[];

@@ -18,6 +18,7 @@ type AppAction =
 
 const initialState: AppState = {
   currentUser: null,
+  users: mockUsers, // <-- LÍNEA AÑADIDA
   clients: mockClients,
   bicycles: mockBicycles,
   workOrders: mockWorkOrders,
