@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -13,13 +13,37 @@ import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Down
 import { useApp } from '../contexts/AppContext';
 import { Client, Bicycle, WorkOrder } from '../lib/types';
 import InventoryManagement from './InventoryManagement';
+import { db } from '../firebase/config';
+import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
 
-  // Statistics
-  const totalClients = state.clients.length;
+  const fetchClients = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "clients"));
+      const clientsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Client[];
+      setClients(clientsData);
+    } catch (error) {
+      console.error("Error fetching clients: ", error);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'clients' || activeTab === 'bicycles' || activeTab === 'workorders') {
+      fetchClients();
+    }
+  }, [activeTab]);
+
+  const totalClients = clients.length;
   const totalBicycles = state.bicycles.length;
   const openWorkOrders = state.workOrders.filter(wo => wo.status === 'open').length;
   const readyForDelivery = state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length;
@@ -37,7 +61,6 @@ export default function AdminDashboard() {
             <p className="text-xs text-muted-foreground">Total registrados</p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Bicicletas</CardTitle>
@@ -48,7 +71,6 @@ export default function AdminDashboard() {
             <p className="text-xs text-muted-foreground">En el sistema</p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Fichas Abiertas</CardTitle>
@@ -59,7 +81,6 @@ export default function AdminDashboard() {
             <p className="text-xs text-muted-foreground">Pendientes</p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Para Entrega</CardTitle>
@@ -71,7 +92,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -111,7 +131,6 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader>
             <CardTitle>Para Entrega</CardTitle>
@@ -150,25 +169,28 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const ClientsTab = () => {
+  const ClientsTab = ({ clients, loading, onClientAdded }: { clients: Client[], loading: boolean, onClientAdded: () => void }) => {
     const [showAddClient, setShowAddClient] = useState(false);
-    const [newClient, setNewClient] = useState({
-      name: '',
-      email: '',
-      phone: '',
-      address: ''
-    });
+    const [newClient, setNewClient] = useState({ name: '', email: '', phone: '', address: '' });
 
-    const handleAddClient = () => {
-      const client: Client = {
-        id: `client-${Date.now()}`,
-        ...newClient,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      dispatch({ type: 'ADD_CLIENT', payload: client });
-      setNewClient({ name: '', email: '', phone: '', address: '' });
-      setShowAddClient(false);
+    const handleAddClient = async () => {
+      if (!newClient.name || !newClient.phone) {
+        alert("El nombre y el teléfono son obligatorios.");
+        return;
+      }
+      try {
+        await addDoc(collection(db, "clients"), {
+          ...newClient,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+        setNewClient({ name: '', email: '', phone: '', address: '' });
+        setShowAddClient(false);
+        onClientAdded();
+      } catch (error) {
+        console.error("Error adding client: ", error);
+        alert("Hubo un error al guardar el cliente.");
+      }
     };
 
     return (
@@ -192,40 +214,19 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="name">Nombre Completo</Label>
-                  <Input
-                    id="name"
-                    value={newClient.name}
-                    onChange={(e) => setNewClient({...newClient, name: e.target.value})}
-                    placeholder="Juan Pérez"
-                  />
+                  <Input id="name" value={newClient.name} onChange={(e) => setNewClient({...newClient, name: e.target.value})} placeholder="Juan Pérez"/>
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newClient.email}
-                    onChange={(e) => setNewClient({...newClient, email: e.target.value})}
-                    placeholder="juan@email.com"
-                  />
+                  <Input id="email" type="email" value={newClient.email} onChange={(e) => setNewClient({...newClient, email: e.target.value})} placeholder="juan@email.com"/>
                 </div>
                 <div>
                   <Label htmlFor="phone">Teléfono</Label>
-                  <Input
-                    id="phone"
-                    value={newClient.phone}
-                    onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
-                    placeholder="+56912345678"
-                  />
+                  <Input id="phone" value={newClient.phone} onChange={(e) => setNewClient({...newClient, phone: e.target.value})} placeholder="+56912345678"/>
                 </div>
                 <div>
                   <Label htmlFor="address">Dirección</Label>
-                  <Textarea
-                    id="address"
-                    value={newClient.address}
-                    onChange={(e) => setNewClient({...newClient, address: e.target.value})}
-                    placeholder="Dirección completa"
-                  />
+                  <Textarea id="address" value={newClient.address} onChange={(e) => setNewClient({...newClient, address: e.target.value})} placeholder="Dirección completa"/>
                 </div>
                 <Button onClick={handleAddClient} className="w-full">
                   Guardar Cliente
@@ -237,72 +238,51 @@ export default function AdminDashboard() {
 
         <Card>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Bicicletas</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {state.clients.map(client => {
-                  const clientBicycles = state.bicycles.filter(b => b.clientId === client.id);
-                  return (
-                    <TableRow key={client.id}>
-                      <TableCell>{client.name}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell>{client.phone}</TableCell>
-                      <TableCell>{clientBicycles.length}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            {loading ? <p>Cargando clientes...</p> : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Teléfono</TableHead>
+                    <TableHead>Bicicletas</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clients.map(client => {
+                    const clientBicycles = state.bicycles.filter(b => b.clientId === client.id);
+                    return (
+                      <TableRow key={client.id}>
+                        <TableCell>{client.name}</TableCell>
+                        <TableCell>{client.email}</TableCell>
+                        <TableCell>{client.phone}</TableCell>
+                        <TableCell>{clientBicycles.length}</TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
     );
   };
 
-  const BicyclesTab = () => {
+  const BicyclesTab = ({ clients }: { clients: Client[] }) => {
     const [showAddBicycle, setShowAddBicycle] = useState(false);
-    const [newBicycle, setNewBicycle] = useState({
-      clientId: '',
-      brand: '',
-      model: '',
-      type: 'mountain' as const,
-      color: '',
-      serialNumber: '',
-      year: new Date().getFullYear(),
-      notes: ''
-    });
+    const [newBicycle, setNewBicycle] = useState({ clientId: '', brand: '', model: '', type: 'mountain' as Bicycle['type'], color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
 
     const handleAddBicycle = () => {
-      const bicycle: Bicycle = {
-        id: `bike-${Date.now()}`,
-        ...newBicycle,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      const bicycle: Bicycle = { id: `bike-${Date.now()}`, ...newBicycle, createdAt: new Date(), updatedAt: new Date() };
       dispatch({ type: 'ADD_BICYCLE', payload: bicycle });
-      setNewBicycle({
-        clientId: '',
-        brand: '',
-        model: '',
-        type: 'mountain',
-        color: '',
-        serialNumber: '',
-        year: new Date().getFullYear(),
-        notes: ''
-      });
+      setNewBicycle({ clientId: '', brand: '', model: '', type: 'mountain', color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
       setShowAddBicycle(false);
     };
 
@@ -312,30 +292,21 @@ export default function AdminDashboard() {
           <h3>Gestión de Bicicletas</h3>
           <Dialog open={showAddBicycle} onOpenChange={setShowAddBicycle}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Bicicleta
-              </Button>
+              <Button><Plus className="h-4 w-4 mr-2" />Nueva Bicicleta</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Agregar Nueva Bicicleta</DialogTitle>
-                <DialogDescription>
-                  Registra una nueva bicicleta en el sistema
-                </DialogDescription>
+                <DialogDescription>Registra una nueva bicicleta en el sistema</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="clientId">Cliente</Label>
                   <Select value={newBicycle.clientId} onValueChange={(value) => setNewBicycle({...newBicycle, clientId: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
                     <SelectContent>
-                      {state.clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
+                      {clients.map(client => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -343,30 +314,18 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="brand">Marca</Label>
-                    <Input
-                      id="brand"
-                      value={newBicycle.brand}
-                      onChange={(e) => setNewBicycle({...newBicycle, brand: e.target.value})}
-                      placeholder="Trek, Giant, etc."
-                    />
+                    <Input id="brand" value={newBicycle.brand} onChange={(e) => setNewBicycle({...newBicycle, brand: e.target.value})} placeholder="Trek, Giant, etc."/>
                   </div>
                   <div>
                     <Label htmlFor="model">Modelo</Label>
-                    <Input
-                      id="model"
-                      value={newBicycle.model}
-                      onChange={(e) => setNewBicycle({...newBicycle, model: e.target.value})}
-                      placeholder="Marlin 7, Escape 3, etc."
-                    />
+                    <Input id="model" value={newBicycle.model} onChange={(e) => setNewBicycle({...newBicycle, model: e.target.value})} placeholder="Marlin 7, Escape 3, etc."/>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="type">Tipo</Label>
-                    <Select value={newBicycle.type} onValueChange={(value: any) => setNewBicycle({...newBicycle, type: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Select value={newBicycle.type} onValueChange={(value: Bicycle['type']) => setNewBicycle({...newBicycle, type: value})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="mountain">Montaña</SelectItem>
                         <SelectItem value="road">Ruta</SelectItem>
@@ -379,51 +338,28 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <Label htmlFor="color">Color</Label>
-                    <Input
-                      id="color"
-                      value={newBicycle.color}
-                      onChange={(e) => setNewBicycle({...newBicycle, color: e.target.value})}
-                      placeholder="Azul, Rojo, etc."
-                    />
+                    <Input id="color" value={newBicycle.color} onChange={(e) => setNewBicycle({...newBicycle, color: e.target.value})} placeholder="Azul, Rojo, etc."/>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="serialNumber">Número de Serie</Label>
-                    <Input
-                      id="serialNumber"
-                      value={newBicycle.serialNumber}
-                      onChange={(e) => setNewBicycle({...newBicycle, serialNumber: e.target.value})}
-                      placeholder="Opcional"
-                    />
+                    <Input id="serialNumber" value={newBicycle.serialNumber} onChange={(e) => setNewBicycle({...newBicycle, serialNumber: e.target.value})} placeholder="Opcional"/>
                   </div>
                   <div>
                     <Label htmlFor="year">Año</Label>
-                    <Input
-                      id="year"
-                      type="number"
-                      value={newBicycle.year}
-                      onChange={(e) => setNewBicycle({...newBicycle, year: parseInt(e.target.value)})}
-                    />
+                    <Input id="year" type="number" value={newBicycle.year} onChange={(e) => setNewBicycle({...newBicycle, year: parseInt(e.target.value)})}/>
                   </div>
                 </div>
                 <div>
                   <Label htmlFor="notes">Notas</Label>
-                  <Textarea
-                    id="notes"
-                    value={newBicycle.notes}
-                    onChange={(e) => setNewBicycle({...newBicycle, notes: e.target.value})}
-                    placeholder="Observaciones adicionales"
-                  />
+                  <Textarea id="notes" value={newBicycle.notes} onChange={(e) => setNewBicycle({...newBicycle, notes: e.target.value})} placeholder="Observaciones adicionales"/>
                 </div>
-                <Button onClick={handleAddBicycle} className="w-full">
-                  Guardar Bicicleta
-                </Button>
+                <Button onClick={handleAddBicycle} className="w-full">Guardar Bicicleta</Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
-
         <Card>
           <CardContent>
             <Table>
@@ -439,7 +375,7 @@ export default function AdminDashboard() {
               </TableHeader>
               <TableBody>
                 {state.bicycles.map(bicycle => {
-                  const client = state.clients.find(c => c.id === bicycle.clientId);
+                  const client = clients.find(c => c.id === bicycle.clientId);
                   return (
                     <TableRow key={bicycle.id}>
                       <TableCell>{client?.name}</TableCell>
@@ -455,11 +391,7 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>{bicycle.color}</TableCell>
                       <TableCell>{bicycle.year}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+                      <TableCell><Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button></TableCell>
                     </TableRow>
                   );
                 })}
@@ -471,7 +403,7 @@ export default function AdminDashboard() {
     );
   };
 
-  const WorkOrdersTab = () => {
+  const WorkOrdersTab = ({ clients }: { clients: Client[] }) => {
   const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
   const [newWorkOrder, setNewWorkOrder] = useState({
     clientId: '',
@@ -522,10 +454,11 @@ export default function AdminDashboard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
+              <DialogDescription>Registra una nueva ficha de trabajo</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="clientId">Cliente</Label>
+                <Label htmlFor="clientId-wo">Cliente</Label>
                 <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
                   <SelectContent>
@@ -536,7 +469,7 @@ export default function AdminDashboard() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="bicycleId">Bicicleta</Label>
+                <Label htmlFor="bicycleId-wo">Bicicleta</Label>
                 <Select 
                   value={newWorkOrder.bicycleId} 
                   onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
@@ -551,9 +484,9 @@ export default function AdminDashboard() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="description">Descripción del Problema</Label>
+                <Label htmlFor="description-wo">Descripción del Problema</Label>
                 <Textarea
-                  id="description"
+                  id="description-wo"
                   value={newWorkOrder.description}
                   onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
                 />
@@ -686,7 +619,6 @@ export default function AdminDashboard() {
         <h1>Panel de Administración</h1>
         <p className="text-muted-foreground">Sistema de gestión del taller Merchant Bike</p>
       </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
@@ -701,17 +633,11 @@ export default function AdminDashboard() {
           <OverviewTab />
         </TabsContent>
         
-        <TabsContent value="clients" className="mt-6">
-          <ClientsTab />
-        </TabsContent>
+        <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loadingClients} onClientAdded={fetchClients} /></TabsContent>
         
-        <TabsContent value="bicycles" className="mt-6">
-          <BicyclesTab />
-        </TabsContent>
+        <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} /></TabsContent>
         
-        <TabsContent value="workorders" className="mt-6">
-          <WorkOrdersTab />
-        </TabsContent>
+        <TabsContent value="workorders" className="mt-6"><WorkOrdersTab clients={clients} /></TabsContent>
 
         <TabsContent value="inventory" className="mt-6">
           <InventoryManagement />
