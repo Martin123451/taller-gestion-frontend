@@ -14,7 +14,11 @@ type AppAction =
   | { type: 'START_WORK_ORDER'; payload: { workOrderId: string; mechanicId: string } }
   | { type: 'COMPLETE_WORK_ORDER'; payload: string }
   | { type: 'DELIVER_WORK_ORDER'; payload: string }
-  | { type: 'UPDATE_WORK_TIME'; payload: { workOrderId: string; minutes: number } };
+  | { type: 'UPDATE_WORK_TIME'; payload: { workOrderId: string; minutes: number } }
+  | { type: 'ADD_SERVICE'; payload: ServiceItem }
+  | { type: 'UPDATE_SERVICE'; payload: ServiceItem }
+  | { type: 'ADD_PART'; payload: PartItem }
+  | { type: 'UPDATE_PART'; payload: PartItem };
 
 const initialState: AppState = {
   currentUser: null,
@@ -122,6 +126,28 @@ function appReducer(state: AppState, action: AppAction): AppState {
           wo.id === action.payload.workOrderId 
             ? { ...wo, workTimeMinutes: action.payload.minutes }
             : wo
+        )
+      };
+
+    case 'ADD_SERVICE':
+      return { ...state, services: [...state.services, action.payload] };
+
+    case 'UPDATE_SERVICE':
+      return {
+        ...state,
+        services: state.services.map(s => 
+          s.id === action.payload.id ? action.payload : s
+        )
+      };
+
+    case 'ADD_PART':
+      return { ...state, parts: [...state.parts, action.payload] };
+
+    case 'UPDATE_PART':
+      return {
+        ...state,
+        parts: state.parts.map(p => 
+          p.id === action.payload.id ? action.payload : p
         )
       };
     

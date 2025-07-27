@@ -178,7 +178,8 @@ export const mockParts: PartItem[] = [
     description: 'Neumático para bicicleta de montaña',
     price: 25000,
     brand: 'Continental',
-    partNumber: 'CTL-26-01'
+    partNumber: 'CTL-26-01',
+    stock: 10
   },
   {
     id: 'part-2',
@@ -186,7 +187,8 @@ export const mockParts: PartItem[] = [
     description: 'Cadena para sistema de 11 velocidades',
     price: 35000,
     brand: 'Shimano',
-    partNumber: 'SHM-CH-11'
+    partNumber: 'SHM-CH-11',
+    stock: 10
   },
   {
     id: 'part-3',
@@ -194,7 +196,8 @@ export const mockParts: PartItem[] = [
     description: 'Pastillas de freno de disco',
     price: 18000,
     brand: 'Shimano',
-    partNumber: 'SHM-BP-01'
+    partNumber: 'SHM-BP-01',
+    stock: 10
   },
   {
     id: 'part-4',
@@ -202,7 +205,8 @@ export const mockParts: PartItem[] = [
     description: 'Cable de acero para cambios',
     price: 5000,
     brand: 'Jagwire',
-    partNumber: 'JAG-SC-01'
+    partNumber: 'JAG-SC-01',
+    stock: 10
   },
   {
     id: 'part-5',
@@ -210,7 +214,8 @@ export const mockParts: PartItem[] = [
     description: 'Cámara de aire para neumático 26 pulgadas',
     price: 8000,
     brand: 'Schwalbe',
-    partNumber: 'SCH-TB-26'
+    partNumber: 'SCH-TB-26',
+    stock: 10
   }
 ];
 

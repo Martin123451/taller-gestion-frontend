@@ -45,6 +45,7 @@ export interface PartItem {
   price: number;
   brand?: string;
   partNumber?: string;
+  stock: number;
 }
 
 export interface WorkOrderService {

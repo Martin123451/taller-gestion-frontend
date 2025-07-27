@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { Client, Bicycle, WorkOrder } from '../lib/types';
+import InventoryManagement from './InventoryManagement';
 
 export default function AdminDashboard() {
   const { state, dispatch } = useApp();
@@ -637,12 +638,13 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="clients">Clientes</TabsTrigger>
-          <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
-          <TabsTrigger value="workorders">Fichas</TabsTrigger>
-        </TabsList>
+        <TabsList className="grid w-full grid-cols-5">
+        <TabsTrigger value="overview">Resumen</TabsTrigger>
+        <TabsTrigger value="clients">Clientes</TabsTrigger>
+        <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
+        <TabsTrigger value="workorders">Fichas</TabsTrigger>
+        <TabsTrigger value="inventory">Inventario</TabsTrigger> {/* <-- PESTAÑA AÑADIDA */}
+      </TabsList>
         
         <TabsContent value="overview" className="mt-6">
           <OverviewTab />
@@ -658,6 +660,10 @@ export default function AdminDashboard() {
         
         <TabsContent value="workorders" className="mt-6">
           <WorkOrdersTab />
+        </TabsContent>
+
+        <TabsContent value="inventory" className="mt-6">
+          <InventoryManagement />
         </TabsContent>
       </Tabs>
     </div>
