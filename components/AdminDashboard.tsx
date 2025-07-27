@@ -9,7 +9,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3 } from 'lucide-react';
+import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { Client, Bicycle, WorkOrder } from '../lib/types';
 import InventoryManagement from './InventoryManagement';
@@ -81,7 +81,12 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="space-y-3">
               {state.workOrders
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .filter(wo => wo.status === 'open' || wo.status === 'in_progress')
+                .sort((a, b) => {
+                  if (!a.estimatedDeliveryDate) return 1;
+                  if (!b.estimatedDeliveryDate) return -1;
+                  return a.estimatedDeliveryDate.getTime() - b.estimatedDeliveryDate.getTime();
+                })
                 .slice(0, 5)
                 .map(workOrder => (
                   <div key={workOrder.id} className="flex items-center justify-between p-3 border rounded">
@@ -91,17 +96,16 @@ export default function AdminDashboard() {
                         {workOrder.bicycle.brand} {workOrder.bicycle.model}
                       </p>
                     </div>
-                    <Badge variant={
-                      workOrder.status === 'open' ? 'default' :
-                      workOrder.status === 'in_progress' ? 'secondary' :
-                      workOrder.status === 'ready_for_delivery' ? 'outline' :
-                      'default'
-                    }>
-                      {workOrder.status === 'open' ? 'Abierta' :
-                       workOrder.status === 'in_progress' ? 'En Progreso' :
-                       workOrder.status === 'ready_for_delivery' ? 'Lista' :
-                       'Finalizada'}
-                    </Badge>
+                    <div className="text-right">
+                      <Badge variant={workOrder.status === 'open' ? 'default' : 'secondary'}>
+                        {workOrder.status === 'open' ? 'Abierta' : 'En Progreso'}
+                      </Badge>
+                      {workOrder.estimatedDeliveryDate && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Entrega: {workOrder.estimatedDeliveryDate.toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
             </div>
@@ -468,167 +472,213 @@ export default function AdminDashboard() {
   };
 
   const WorkOrdersTab = () => {
-    const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
-    const [newWorkOrder, setNewWorkOrder] = useState({
-      clientId: '',
-      bicycleId: '',
-      description: ''
-    });
+  const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
+  const [newWorkOrder, setNewWorkOrder] = useState({
+    clientId: '',
+    bicycleId: '',
+    description: '',
+    estimatedDeliveryDate: ''
+  });
 
-    const handleAddWorkOrder = () => {
-      const client = state.clients.find(c => c.id === newWorkOrder.clientId);
-      const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
-      
-      if (client && bicycle) {
-        const workOrder: WorkOrder = {
-          id: `wo-${Date.now()}`,
-          clientId: newWorkOrder.clientId,
-          client,
-          bicycleId: newWorkOrder.bicycleId,
-          bicycle,
-          description: newWorkOrder.description,
-          status: 'open',
-          services: [],
-          parts: [],
-          totalAmount: 0,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
-        setNewWorkOrder({ clientId: '', bicycleId: '', description: '' });
-        setShowAddWorkOrder(false);
-      }
-    };
+  const handleAddWorkOrder = () => {
+    const client = state.clients.find(c => c.id === newWorkOrder.clientId);
+    const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
 
-    const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
-
-    return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3>Gestión de Fichas de Trabajo</h3>
-          <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Ficha
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
-                <DialogDescription>
-                  Registra una nueva ficha de trabajo
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="clientId">Cliente</Label>
-                  <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {state.clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="bicycleId">Bicicleta</Label>
-                  <Select 
-                    value={newWorkOrder.bicycleId} 
-                    onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
-                    disabled={!newWorkOrder.clientId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar bicicleta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableBicycles.map(bicycle => (
-                        <SelectItem key={bicycle.id} value={bicycle.id}>
-                          {bicycle.brand} {bicycle.model} ({bicycle.color})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="description">Descripción del Problema</Label>
-                  <Textarea
-                    id="description"
-                    value={newWorkOrder.description}
-                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
-                    placeholder="Describe el problema o trabajo a realizar..."
-                  />
-                </div>
-                <Button onClick={handleAddWorkOrder} className="w-full">
-                  Crear Ficha
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <Card>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Bicicleta</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {state.workOrders
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .map(workOrder => (
-                    <TableRow key={workOrder.id}>
-                      <TableCell>#{workOrder.id.slice(-6)}</TableCell>
-                      <TableCell>{workOrder.client.name}</TableCell>
-                      <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          workOrder.status === 'open' ? 'default' :
-                          workOrder.status === 'in_progress' ? 'secondary' :
-                          workOrder.status === 'ready_for_delivery' ? 'outline' :
-                          'default'
-                        }>
-                          {workOrder.status === 'open' ? 'Abierta' :
-                           workOrder.status === 'in_progress' ? 'En Progreso' :
-                           workOrder.status === 'ready_for_delivery' ? 'Lista' :
-                           'Finalizada'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>${workOrder.totalAmount.toLocaleString()}</TableCell>
-                      <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        {workOrder.status === 'ready_for_delivery' && (
-                          <Button 
-                            size="sm"
-                            onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Entregar
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    if (client && bicycle) {
+      const workOrder: WorkOrder = {
+        id: `wo-${Date.now()}`,
+        clientId: newWorkOrder.clientId,
+        client,
+        bicycleId: newWorkOrder.bicycleId,
+        bicycle,
+        description: newWorkOrder.description,
+        status: 'open',
+        services: [],
+        parts: [],
+        totalAmount: 0,
+        estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : undefined,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
+      setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+      setShowAddWorkOrder(false);
+    }
   };
+
+  const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3>Gestión de Fichas de Trabajo</h3>
+        <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Ficha
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="clientId">Cliente</Label>
+                <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+                  <SelectContent>
+                    {state.clients.map(client => (
+                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="bicycleId">Bicicleta</Label>
+                <Select 
+                  value={newWorkOrder.bicycleId} 
+                  onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
+                  disabled={!newWorkOrder.clientId}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
+                  <SelectContent>
+                    {availableBicycles.map(bicycle => (
+                      <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="description">Descripción del Problema</Label>
+                <Textarea
+                  id="description"
+                  value={newWorkOrder.description}
+                  onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
+                <Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} />
+              </div>
+              <Button onClick={handleAddWorkOrder} className="w-full">
+                Crear Ficha
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Bicicleta</TableHead>
+                <TableHead>Fecha Ingreso</TableHead>
+                <TableHead>Fecha Entrega Est.</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {state.workOrders
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map(workOrder => (
+                  <TableRow key={workOrder.id}>
+                    <TableCell>#{workOrder.id.slice(-6)}</TableCell>
+                    <TableCell>{workOrder.client.name}</TableCell>
+                    <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
+                    <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        workOrder.status === 'open' ? 'default' :
+                        workOrder.status === 'in_progress' ? 'secondary' :
+                        workOrder.status === 'ready_for_delivery' ? 'outline' :
+                        'default'
+                      }>
+                        {workOrder.status === 'open' ? 'Abierta' :
+                         workOrder.status === 'in_progress' ? 'En Progreso' :
+                         workOrder.status === 'ready_for_delivery' ? 'Lista' :
+                         'Finalizada'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {workOrder.status === 'ready_for_delivery' && (
+                        <Button 
+                          size="sm"
+                          onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Entregar
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+  const DataTab = () => (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Análisis y Reportes</CardTitle>
+          <CardDescription>Filtra y exporta el historial de fichas de trabajo.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="start-date">Fecha de Inicio</Label>
+              <Input id="start-date" type="date" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="end-date">Fecha de Fin</Label>
+              <Input id="end-date" type="date" />
+            </div>
+            <Button className="self-end">Filtrar</Button>
+            <Button variant="outline" className="self-end ml-auto">
+              <Download className="h-4 w-4 mr-2" />
+              Descargar Excel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+              <CardHeader><CardTitle>Gráfico 1 (Próximamente)</CardTitle></CardHeader>
+              <CardContent className="h-60 bg-slate-50 flex items-center justify-center rounded-lg">
+                  <p className="text-muted-foreground">Datos del Backend</p>
+              </CardContent>
+          </Card>
+          <Card>
+              <CardHeader><CardTitle>Gráfico 2 (Próximamente)</CardTitle></CardHeader>
+              <CardContent className="h-60 bg-slate-50 flex items-center justify-center rounded-lg">
+                  <p className="text-muted-foreground">Datos del Backend</p>
+              </CardContent>
+          </Card>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Historial Detallado de Fichas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-muted-foreground py-8">La tabla con el detalle de servicios, piezas y totales aparecerá aquí una vez conectado el backend.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   return (
     <div className="p-6">
@@ -638,13 +688,14 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-        <TabsTrigger value="overview">Resumen</TabsTrigger>
-        <TabsTrigger value="clients">Clientes</TabsTrigger>
-        <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
-        <TabsTrigger value="workorders">Fichas</TabsTrigger>
-        <TabsTrigger value="inventory">Inventario</TabsTrigger> {/* <-- PESTAÑA AÑADIDA */}
-      </TabsList>
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="overview">Resumen</TabsTrigger>
+          <TabsTrigger value="clients">Clientes</TabsTrigger>
+          <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
+          <TabsTrigger value="workorders">Fichas</TabsTrigger>
+          <TabsTrigger value="inventory">Inventario</TabsTrigger>
+          <TabsTrigger value="data">Datos</TabsTrigger>
+        </TabsList>
         
         <TabsContent value="overview" className="mt-6">
           <OverviewTab />
@@ -664,6 +715,10 @@ export default function AdminDashboard() {
 
         <TabsContent value="inventory" className="mt-6">
           <InventoryManagement />
+        </TabsContent>
+
+        <TabsContent value="data" className="mt-6">
+          <DataTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -48,6 +48,8 @@ export default function EditItemDialog({ item, onSave, itemType }: EditItemDialo
             <Label htmlFor="price">Precio</Label>
             <Input id="price" type="number" value={formData.price} onChange={handleChange} />
           </div>
+
+          {/* --- ESTA ES LA CORRECCIÓN CLAVE --- */}
           {itemType === 'part' && (
             <>
               <div>
@@ -60,6 +62,8 @@ export default function EditItemDialog({ item, onSave, itemType }: EditItemDialo
               </div>
             </>
           )}
+          {/* ------------------------------------ */}
+
           <Button onClick={handleSave} className="w-full">Guardar Cambios</Button>
         </div>
       </DialogContent>

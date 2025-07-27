@@ -87,6 +87,7 @@ export interface WorkOrder {
   workTimeMinutes?: number;
   adminNotes?: string;
   mechanicNotes?: string;
+  estimatedDeliveryDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

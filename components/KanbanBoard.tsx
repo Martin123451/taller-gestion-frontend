@@ -68,6 +68,11 @@ const WorkOrderCard = memo(({ workOrder, timerValue, isTimerRunning, isSelected,
               <span className="text-xs text-muted-foreground">
                 #{workOrder.id.slice(-6)}
               </span>
+              {workOrder.estimatedDeliveryDate && (
+                <p className="text-xs text-muted-foreground">
+                  Entrega: {new Date(workOrder.estimatedDeliveryDate).toLocaleDateString()}
+                </p>
+              )}
               <Badge variant={
                 workOrder.status === 'open' ? 'default' :
                 workOrder.status === 'in_progress' ? 'secondary' :
@@ -99,6 +104,16 @@ const WorkOrderDetail = ({ workOrder }: { workOrder: WorkOrder }) => {
     const [services, setServices] = useState<WorkOrderService[]>(workOrder.services);
     const [parts, setParts] = useState<WorkOrderPart[]>(workOrder.parts);
     const [mechanicNotes, setMechanicNotes] = useState(workOrder.mechanicNotes || '');
+    const { state: appState, dispatch: appDispatch } = useApp();
+    const startWork = (workOrderId: string) => {
+        if (appState.currentUser) {
+            appDispatch({ type: 'START_WORK_ORDER', payload: { workOrderId, mechanicId: appState.currentUser.id } });
+        }
+    };
+
+    const completeWork = (workOrderId: string) => {
+        appDispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrderId });
+    };
     
     // ... El resto del código de WorkOrderDetail (largo) va aquí sin cambios ...
     const addService = (serviceId: string) => {
@@ -253,15 +268,16 @@ const WorkOrderDetail = ({ workOrder }: { workOrder: WorkOrder }) => {
             <div className="flex gap-2">
               <Button variant="outline" onClick={saveChanges} className="border-marchant-green text-marchant-green hover:bg-marchant-green-light">Guardar Cambios</Button>
               {workOrder.status === 'open' && (
-                <Button onClick={() => {
-                  const { state: appState, dispatch: appDispatch } = useApp();
-                  if (appState.currentUser) {
-                    appDispatch({ type: 'START_WORK_ORDER', payload: { workOrderId: workOrder.id, mechanicId: appState.currentUser.id } });
-                  }
-                }} className="bg-marchant-green hover:bg-marchant-green-dark"><Play className="h-4 w-4 mr-2" />Iniciar Trabajo</Button>
+                <Button onClick={() => startWork(workOrder.id)} className="bg-marchant-green hover:bg-marchant-green-dark">
+                  <Play className="h-4 w-4 mr-2" />
+                  Iniciar Trabajo
+                </Button>
               )}
               {workOrder.status === 'in_progress' && (
-                <Button onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} className="bg-marchant-red hover:bg-marchant-red-dark"><CheckCircle2 className="h-4 w-4 mr-2" />Completar</Button>
+                <Button onClick={() => completeWork(workOrder.id)} className="bg-marchant-red hover:bg-marchant-red-dark">
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Completar
+                </Button>
               )}
             </div>
           </div>
