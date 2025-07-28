@@ -163,8 +163,8 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const ClientsTab = ({ isModal = false, closeModal }: { isModal?: boolean, closeModal?: () => void }) => {
-    // El estado ahora depende de si estamos en un modal para mostrar el formulario inmediatamente
+  const ClientsTab = ({ isModal = false, closeModal, onClientCreated }: { isModal?: boolean, closeModal?: () => void, onClientCreated?: (newClient: Client) => void }) => {
+    // Si es un modal, el formulario se muestra por defecto.
     const [showAddClient, setShowAddClient] = useState(isModal);
     const [newClient, setNewClient] = useState({
       name: '',
@@ -181,9 +181,11 @@ export default function AdminDashboard() {
         updatedAt: new Date()
       };
       dispatch({ type: 'ADD_CLIENT', payload: client });
+      if (onClientCreated) onClientCreated(client); // Devuelve el cliente creado
+      
       setNewClient({ name: '', email: '', phone: '', address: '' });
+      // Cierra el modal (ya sea el propio o el que le pasó el padre)
       setShowAddClient(false);
-      // Si estamos en un modal, llamamos a la función para cerrarlo
       if (isModal && closeModal) {
         closeModal();
       }
@@ -191,19 +193,18 @@ export default function AdminDashboard() {
 
     return (
       <div className="space-y-4">
-        {/* El encabezado y la tabla solo se muestran si NO estamos en un modal */}
+        {/* La vista de tabla solo se muestra si NO estamos en un modal */}
         {!isModal && (
           <>
             <div className="flex justify-between items-center">
               <h3>Gestión de Clientes</h3>
-              {/* Este botón ahora solo controla el estado para la vista de pestaña */}
               <Button onClick={() => setShowAddClient(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nuevo Cliente
               </Button>
             </div>
             <Card>
-              <CardContent>
+              <CardContent className="pt-6">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -238,7 +239,7 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {/* El Dialog ahora siempre está presente, pero se controla con el estado 'showAddClient' */}
+        {/* El Dialog siempre existe, y se controla con 'showAddClient' */}
         <Dialog open={showAddClient} onOpenChange={setShowAddClient}>
           <DialogContent>
             <DialogHeader>
@@ -247,23 +248,11 @@ export default function AdminDashboard() {
                 Completa la información del cliente
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Nombre Completo</Label>
-                <Input id="name" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} placeholder="Juan Pérez" />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} placeholder="juan@email.com" />
-              </div>
-              <div>
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input id="phone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} placeholder="+56912345678" />
-              </div>
-              <div>
-                <Label htmlFor="address">Dirección</Label>
-                <Textarea id="address" value={newClient.address || ''} onChange={(e) => setNewClient({ ...newClient, address: e.target.value })} placeholder="Dirección completa" />
-              </div>
+            <div className="space-y-4 pt-4">
+              <div><Label htmlFor="name">Nombre Completo</Label><Input id="name" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} placeholder="Juan Pérez" /></div>
+              <div><Label htmlFor="email">Email</Label><Input id="email" type="email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} placeholder="juan@email.com" /></div>
+              <div><Label htmlFor="phone">Teléfono</Label><Input id="phone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} placeholder="+56912345678" /></div>
+              <div><Label htmlFor="address">Dirección</Label><Textarea id="address" value={newClient.address || ''} onChange={(e) => setNewClient({ ...newClient, address: e.target.value })} placeholder="Dirección completa" /></div>
               <Button onClick={handleAddClient} className="w-full">
                 Guardar Cliente
               </Button>
@@ -274,8 +263,8 @@ export default function AdminDashboard() {
     );
   };
 
-  const BicyclesTab = ({ isModal = false, closeModal, selectedClientId }: { isModal?: boolean, closeModal?: () => void, selectedClientId?: string }) => {
-    // El estado ahora depende de si estamos en un modal para mostrar el formulario inmediatamente
+  const BicyclesTab = ({ isModal = false, closeModal, selectedClientId, onBicycleCreated }: { isModal?: boolean, closeModal?: () => void, selectedClientId?: string, onBicycleCreated?: (newBicycle: Bicycle) => void }) => {
+    // El estado ahora depende de si estamos en un modal
     const [showAddBicycle, setShowAddBicycle] = useState(isModal);
     const [newBicycle, setNewBicycle] = useState({
       clientId: selectedClientId || '',
@@ -296,13 +285,13 @@ export default function AdminDashboard() {
         updatedAt: new Date()
       };
       dispatch({ type: 'ADD_BICYCLE', payload: bicycle });
-      // Limpiamos el formulario después de guardar
+      if (onBicycleCreated) onBicycleCreated(bicycle); // Devuelve la bicicleta creada
+      
       setNewBicycle({
         clientId: selectedClientId || '', brand: '', model: '', type: 'mountain', color: '',
         serialNumber: '', year: new Date().getFullYear(), notes: ''
       });
       setShowAddBicycle(false);
-      // Si estamos en un modal, llamamos a la función para cerrarlo
       if (isModal && closeModal) {
         closeModal();
       }
@@ -310,7 +299,7 @@ export default function AdminDashboard() {
 
     return (
       <div className="space-y-4">
-        {/* El encabezado y la tabla solo se muestran si NO estamos en un modal */}
+        {/* La vista de tabla solo se muestra si NO estamos en un modal */}
         {!isModal && (
           <>
             <div className="flex justify-between items-center">
@@ -321,7 +310,7 @@ export default function AdminDashboard() {
               </Button>
             </div>
             <Card>
-              <CardContent>
+              <CardContent className="pt-6">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -362,7 +351,7 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {/* El Dialog ahora siempre está presente, pero se controla con el estado 'showAddBicycle' */}
+        {/* El Dialog siempre existe y se controla con 'showAddBicycle' */}
         <Dialog open={showAddBicycle} onOpenChange={setShowAddBicycle}>
           <DialogContent>
             <DialogHeader>
@@ -371,20 +360,12 @@ export default function AdminDashboard() {
                 Registra una nueva bicicleta en el sistema
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4">
               <div>
                 <Label htmlFor="clientId">Cliente</Label>
                 <Select value={newBicycle.clientId} onValueChange={(value) => setNewBicycle({ ...newBicycle, clientId: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {state.clients.map(client => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+                  <SelectContent>{state.clients.map(client => (<SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>))}</SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -399,10 +380,7 @@ export default function AdminDashboard() {
                 <div><Label htmlFor="serialNumber">Número de Serie</Label><Input id="serialNumber" value={newBicycle.serialNumber || ''} onChange={(e) => setNewBicycle({ ...newBicycle, serialNumber: e.target.value })} placeholder="Opcional" /></div>
                 <div><Label htmlFor="year">Año</Label><Input id="year" type="number" value={newBicycle.year} onChange={(e) => setNewBicycle({ ...newBicycle, year: parseInt(e.target.value) })} /></div>
               </div>
-              <div>
-                <Label htmlFor="notes">Notas</Label>
-                <Textarea id="notes" value={newBicycle.notes || ''} onChange={(e) => setNewBicycle({ ...newBicycle, notes: e.target.value })} placeholder="Observaciones adicionales" />
-              </div>
+              <div><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={newBicycle.notes || ''} onChange={(e) => setNewBicycle({ ...newBicycle, notes: e.target.value })} placeholder="Observaciones adicionales" /></div>
               <Button onClick={handleAddBicycle} className="w-full">
                 Guardar Bicicleta
               </Button>
@@ -522,16 +500,16 @@ export default function AdminDashboard() {
                         <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell>
                           <Badge variant={
-                            workOrder.status === 'open' ? 'default' :
-                            workOrder.status === 'in_progress' ? 'secondary' :
-                            workOrder.status === 'ready_for_delivery' ? 'outline' :
-                            'default'
-                          }>
-                            {workOrder.status === 'open' ? 'Abierta' :
-                            workOrder.status === 'in_progress' ? 'En Progreso' :
-                            workOrder.status === 'ready_for_delivery' ? 'Lista' :
-                            'Finalizada'}
-                          </Badge>
+                          workOrder.status === 'open' ? 'default' :
+                          workOrder.status === 'in_progress' ? 'secondary' :
+                          workOrder.status === 'ready_for_delivery' ? 'outline' :
+                          'default'
+                        }>
+                          {workOrder.status === 'open' ? 'Abierta' :
+                          workOrder.status === 'in_progress' ? 'En Progreso' :
+                          workOrder.status === 'ready_for_delivery' ? 'Lista' :
+                          'Finalizada'}
+                        </Badge>
                         </TableCell>
                         <TableCell>
                           {workOrder.status === 'ready_for_delivery' && (
