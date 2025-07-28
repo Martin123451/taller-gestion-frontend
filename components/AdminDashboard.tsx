@@ -10,63 +10,63 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download, Trash2 } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
 import { Client, Bicycle, WorkOrder } from '../lib/types';
 import InventoryManagement from './InventoryManagement';
 import { db } from '../firebase/config';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 
 export default function AdminDashboard() {
-  const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   
   const [clients, setClients] = useState<Client[]>([]);
-  const [loadingClients, setLoadingClients] = useState(true);
-
   const [bicycles, setBicycles] = useState<Bicycle[]>([]);
-  const [loadingBicycles, setLoadingBicycles] = useState(true);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
 
-  const fetchClients = async () => {
-    setLoadingClients(true);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "clients"));
-      const clientsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Client[];
+      const clientsSnapshot = await getDocs(collection(db, "clients"));
+      const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Client[];
+      
+      const bicyclesSnapshot = await getDocs(collection(db, "bicycles"));
+      const bicyclesData = bicyclesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Bicycle[];
+
+      const workOrdersSnapshot = await getDocs(collection(db, "workorders"));
+      const workOrdersData = workOrdersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const client = clientsData.find(c => c.id === data.clientId);
+        const bicycle = bicyclesData.find(b => b.id === data.bicycleId);
+        const estimatedDeliveryDate = data.estimatedDeliveryDate?.toDate();
+        return {
+          id: doc.id,
+          ...data,
+          client,
+          bicycle,
+          estimatedDeliveryDate,
+        } as WorkOrder;
+      });
+
       setClients(clientsData);
-    } catch (error) {
-      console.error("Error fetching clients: ", error);
-    } finally {
-      setLoadingClients(false);
-    }
-  };
-
-  const fetchBicycles = async () => {
-    setLoadingBicycles(true);
-    try {
-      const querySnapshot = await getDocs(collection(db, "bicycles"));
-      const bicyclesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Bicycle[];
       setBicycles(bicyclesData);
+      setWorkOrders(workOrdersData);
+
     } catch (error) {
-      console.error("Error fetching bicycles: ", error);
+      console.error("Error fetching data: ", error);
     } finally {
-      setLoadingBicycles(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchClients();
-    fetchBicycles();
-  }, [activeTab]);
+    fetchData();
+  }, []);
 
   const totalClients = clients.length;
   const totalBicycles = bicycles.length;
-  const openWorkOrders = state.workOrders.filter(wo => wo.status === 'open').length;
-  const readyForDelivery = state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length;
+  const openWorkOrders = workOrders.filter(wo => wo.status === 'open' || wo.status === 'in_progress').length;
+  const readyForDelivery = workOrders.filter(wo => wo.status === 'ready_for_delivery').length;
 
   const OverviewTab = () => (
     <div className="space-y-6">
@@ -120,20 +120,20 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {state.workOrders
+              {workOrders
                 .filter(wo => wo.status === 'open' || wo.status === 'in_progress')
                 .sort((a, b) => {
                   if (!a.estimatedDeliveryDate) return 1;
                   if (!b.estimatedDeliveryDate) return -1;
-                  return a.estimatedDeliveryDate.getTime() - b.estimatedDeliveryDate.getTime();
+                  return new Date(b.estimatedDeliveryDate).getTime() - new Date(a.estimatedDeliveryDate).getTime();
                 })
                 .slice(0, 5)
                 .map(workOrder => (
                   <div key={workOrder.id} className="flex items-center justify-between p-3 border rounded">
                     <div className="space-y-1">
-                      <p className="text-sm">{workOrder.client.name}</p>
+                      <p className="text-sm">{workOrder.client?.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {workOrder.bicycle.brand} {workOrder.bicycle.model}
+                        {workOrder.bicycle?.brand} {workOrder.bicycle?.model}
                       </p>
                     </div>
                     <div className="text-right">
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
                       </Badge>
                       {workOrder.estimatedDeliveryDate && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Entrega: {workOrder.estimatedDeliveryDate.toLocaleDateString()}
+                          Entrega: {new Date(workOrder.estimatedDeliveryDate).toLocaleDateString()}
                         </p>
                       )}
                     </div>
@@ -158,26 +158,24 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {state.workOrders
+              {workOrders
                 .filter(wo => wo.status === 'ready_for_delivery')
                 .map(workOrder => (
                   <div key={workOrder.id} className="flex items-center justify-between p-3 border rounded">
                     <div className="space-y-1">
-                      <p className="text-sm">{workOrder.client.name}</p>
+                      <p className="text-sm">{workOrder.client?.name}</p>
                       <p className="text-xs text-muted-foreground">
                         Total: ${workOrder.totalAmount.toLocaleString()}
                       </p>
                     </div>
-                    <Button 
-                      size="sm"
-                      onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
-                    >
+                    {/* Placeholder for action, as dispatch is removed for this logic */}
+                    <Button size="sm">
                       <CheckCircle2 className="h-4 w-4 mr-1" />
                       Entregar
                     </Button>
                   </div>
                 ))}
-              {state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length === 0 && (
+              {workOrders.filter(wo => wo.status === 'ready_for_delivery').length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No hay bicicletas listas para entrega
                 </p>
@@ -257,9 +255,7 @@ export default function AdminDashboard() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Agregar Nuevo Cliente</DialogTitle>
-                <DialogDescription>
-                  Completa la información del cliente
-                </DialogDescription>
+                <DialogDescription>Completa la información del cliente</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
@@ -278,14 +274,11 @@ export default function AdminDashboard() {
                   <Label htmlFor="address">Dirección</Label>
                   <Textarea id="address" value={newClient.address} onChange={(e) => setNewClient({...newClient, address: e.target.value})} placeholder="Dirección completa"/>
                 </div>
-                <Button onClick={handleAddClient} className="w-full">
-                  Guardar Cliente
-                </Button>
+                <Button onClick={handleAddClient} className="w-full">Guardar Cliente</Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
-
         <Card>
           <CardContent className="pt-6">
             {loading ? <p>Cargando clientes...</p> : (
@@ -321,14 +314,11 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
-
         <Dialog open={!!editingClient} onOpenChange={(isOpen) => !isOpen && setEditingClient(null)}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Editar Cliente</DialogTitle>
-              <DialogDescription>
-                Actualiza la información del cliente.
-              </DialogDescription>
+              <DialogDescription>Actualiza la información del cliente.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div>
@@ -347,9 +337,7 @@ export default function AdminDashboard() {
                 <Label htmlFor="edit-address">Dirección</Label>
                 <Textarea id="edit-address" value={editingClient?.address || ''} onChange={(e) => setEditingClient(prev => prev ? {...prev, address: e.target.value} : null)} />
               </div>
-              <Button onClick={handleUpdateClient} className="w-full">
-                Guardar Cambios
-              </Button>
+              <Button onClick={handleUpdateClient} className="w-full">Guardar Cambios</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -465,7 +453,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <Label htmlFor="year">Año</Label>
-            <Input id="year" type="number" value={bicycle.year} onChange={(e) => setBicycle({...bicycle, year: parseInt(e.target.value)})}/>
+            <Input id="year" type="number" value={bicycle.year} onChange={(e) => setBicycle({...bicycle, year: parseInt(e.target.value, 10)})}/>
           </div>
         </div>
         <div>
@@ -532,7 +520,6 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
-        
         <Dialog open={!!editingBicycle} onOpenChange={(isOpen) => !isOpen && setEditingBicycle(null)}>
           <DialogContent>
             <DialogHeader>
@@ -547,160 +534,214 @@ export default function AdminDashboard() {
     );
   };
 
-  const WorkOrdersTab = ({ clients }: { clients: Client[] }) => {
-    const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
-    const [newWorkOrder, setNewWorkOrder] = useState({
-      clientId: '',
-      bicycleId: '',
-      description: '',
-      estimatedDeliveryDate: ''
-    });
+  const WorkOrdersTab = ({ clients, bicycles, workOrders, loading, onDataChange }: { clients: Client[], bicycles: Bicycle[], workOrders: WorkOrder[], loading: boolean, onDataChange: () => void }) => {
+    const [isAddDialogOpen, setAddDialogOpen] = useState(false);
+    const [editingWorkOrder, setEditingWorkOrder] = useState<WorkOrder | null>(null);
+    const [newWorkOrder, setNewWorkOrder] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+    const [availableBicycles, setAvailableBicycles] = useState<Bicycle[]>([]);
 
-    const handleAddWorkOrder = () => {
-      const client = state.clients.find(c => c.id === newWorkOrder.clientId);
-      const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
+    useEffect(() => {
+        if (newWorkOrder.clientId) {
+            setAvailableBicycles(bicycles.filter(b => b.clientId === newWorkOrder.clientId));
+        } else {
+            setAvailableBicycles([]);
+        }
+    }, [newWorkOrder.clientId, bicycles]);
 
-      if (client && bicycle) {
-        const workOrder: WorkOrder = {
-          id: `wo-${Date.now()}`,
-          clientId: newWorkOrder.clientId,
-          client,
-          bicycleId: newWorkOrder.bicycleId,
-          bicycle,
-          description: newWorkOrder.description,
-          status: 'open',
-          services: [],
-          parts: [],
-          totalAmount: 0,
-          estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : undefined,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
-        setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
-        setShowAddWorkOrder(false);
-      }
+    useEffect(() => {
+        if (editingWorkOrder?.clientId) {
+            setAvailableBicycles(bicycles.filter(b => b.clientId === editingWorkOrder.clientId));
+        }
+    }, [editingWorkOrder, bicycles]);
+
+    const handleAddWorkOrder = async () => {
+        if (!newWorkOrder.clientId || !newWorkOrder.bicycleId) {
+            alert("Cliente y bicicleta son obligatorios.");
+            return;
+        }
+        try {
+            const dataToSave = {
+                clientId: newWorkOrder.clientId,
+                bicycleId: newWorkOrder.bicycleId,
+                description: newWorkOrder.description,
+                status: 'open',
+                services: [],
+                parts: [],
+                totalAmount: 0,
+                estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? Timestamp.fromDate(new Date(newWorkOrder.estimatedDeliveryDate)) : null,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now()
+            };
+            await addDoc(collection(db, "workorders"), dataToSave);
+            setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+            setAddDialogOpen(false);
+            onDataChange();
+        } catch (error) {
+            console.error("Error adding work order:", error);
+            alert("Hubo un error al guardar la ficha de trabajo.");
+        }
     };
 
-    const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
+    const handleUpdateWorkOrder = async () => {
+        if (!editingWorkOrder) return;
+        try {
+            const workOrderRef = doc(db, "workorders", editingWorkOrder.id);
+            const { id, client, bicycle, ...workOrderData } = editingWorkOrder;
 
+            const dataToSave = {
+                ...workOrderData,
+                estimatedDeliveryDate: editingWorkOrder.estimatedDeliveryDate ? Timestamp.fromDate(new Date(editingWorkOrder.estimatedDeliveryDate)) : null,
+                updatedAt: Timestamp.now()
+            };
+
+            await updateDoc(workOrderRef, dataToSave);
+            setEditingWorkOrder(null);
+            onDataChange();
+        } catch (error) {
+            console.error("Error updating work order:", error);
+            alert("Hubo un error al actualizar la ficha.");
+        }
+    };
+    
+    const handleDeleteWorkOrder = async (workOrderId: string) => {
+        if (window.confirm("¿Estás seguro de que quieres eliminar esta ficha de trabajo?")) {
+            try {
+                await deleteDoc(doc(db, "workorders", workOrderId));
+                onDataChange();
+            } catch (error) {
+                console.error("Error deleting work order:", error);
+                alert("Hubo un error al eliminar la ficha.");
+            }
+        }
+    };
+
+    const formatDate = (date: any) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString();
+    };
+
+    const workOrderForm = (workOrder: any, setWorkOrder: (data: any) => void) => (
+        <div className="space-y-4">
+            <div>
+              <Label htmlFor="clientId-wo">Cliente</Label>
+              <Select value={workOrder.clientId} onValueChange={(value) => setWorkOrder({...workOrder, clientId: value, bicycleId: ''})}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map(client => (
+                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="bicycleId-wo">Bicicleta</Label>
+              <Select 
+                value={workOrder.bicycleId} 
+                onValueChange={(value) => setWorkOrder({...workOrder, bicycleId: value})}
+                disabled={!workOrder.clientId}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
+                <SelectContent>
+                  {availableBicycles.map(bicycle => (
+                    <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="description-wo">Descripción del Problema</Label>
+              <Textarea
+                id="description-wo"
+                value={workOrder.description}
+                onChange={(e) => setWorkOrder({...workOrder, description: e.target.value})}
+              />
+            </div>
+            <div>
+              <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
+              <Input 
+                id="estimatedDeliveryDate" 
+                type="date" 
+                value={workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toISOString().split('T')[0] : ''} 
+                onChange={(e) => setWorkOrder({...workOrder, estimatedDeliveryDate: e.target.value})} />
+            </div>
+        </div>
+    );
+    
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3>Gestión de Fichas de Trabajo</h3>
-          <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
+          <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Ficha
-              </Button>
+              <Button><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
                 <DialogDescription>Registra una nueva ficha de trabajo</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="clientId-wo">Cliente</Label>
-                  <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
-                    <SelectContent>
-                      {clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="bicycleId-wo">Bicicleta</Label>
-                  <Select 
-                    value={newWorkOrder.bicycleId} 
-                    onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
-                    disabled={!newWorkOrder.clientId}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
-                    <SelectContent>
-                      {bicycles.filter(b => b.clientId === newWorkOrder.clientId).map(bicycle => (
-                        <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="description-wo">Descripción del Problema</Label>
-                  <Textarea
-                    id="description-wo"
-                    value={newWorkOrder.description}
-                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
-                  <Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} />
-                </div>
-                <Button onClick={handleAddWorkOrder} className="w-full">
-                  Crear Ficha
-                </Button>
-              </div>
+              {workOrderForm(newWorkOrder, setNewWorkOrder)}
+              <Button onClick={handleAddWorkOrder} className="w-full mt-4">Crear Ficha</Button>
             </DialogContent>
           </Dialog>
         </div>
-
         <Card>
           <CardContent className="pt-6">
+          {loading ? <p>Cargando fichas de trabajo...</p> : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Bicicleta</TableHead>
-                  <TableHead>Fecha Ingreso</TableHead>
-                  <TableHead>Fecha Entrega Est.</TableHead>
+                  <TableHead>Entrega Est.</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {state.workOrders
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .map(workOrder => (
-                    <TableRow key={workOrder.id}>
-                      <TableCell>#{workOrder.id.slice(-6)}</TableCell>
-                      <TableCell>{workOrder.client.name}</TableCell>
-                      <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
-                      <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          workOrder.status === 'open' ? 'default' :
-                          workOrder.status === 'in_progress' ? 'secondary' :
-                          workOrder.status === 'ready_for_delivery' ? 'outline' :
-                          'default'
-                        }>
-                          {workOrder.status === 'open' ? 'Abierta' :
-                           workOrder.status === 'in_progress' ? 'En Progreso' :
-                           workOrder.status === 'ready_for_delivery' ? 'Lista' :
-                           'Finalizada'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {workOrder.status === 'ready_for_delivery' && (
-                          <Button 
-                            size="sm"
-                            onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Entregar
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                {workOrders.map(workOrder => (
+                  <TableRow key={workOrder.id}>
+                    <TableCell>{workOrder.client?.name || 'N/A'}</TableCell>
+                    <TableCell>{workOrder.bicycle ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}`: 'N/A'}</TableCell>
+                    <TableCell>{formatDate(workOrder.estimatedDeliveryDate)}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        workOrder.status === 'open' ? 'default' :
+                        workOrder.status === 'in_progress' ? 'secondary' :
+                        'outline'
+                      }>
+                        {workOrder.status === 'open' ? 'Abierta' :
+                         workOrder.status === 'in_progress' ? 'En Progreso' :
+                         'Lista'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                       <div className="flex items-center justify-center space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => setEditingWorkOrder(workOrder)}>
+                            <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteWorkOrder(workOrder.id)}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                       </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
+          )}
           </CardContent>
         </Card>
+        <Dialog open={!!editingWorkOrder} onOpenChange={(isOpen) => !isOpen && setEditingWorkOrder(null)}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Editar Ficha de Trabajo</DialogTitle>
+                    <DialogDescription>Actualiza la información de la ficha.</DialogDescription>
+                </DialogHeader>
+                {editingWorkOrder && workOrderForm(editingWorkOrder, setEditingWorkOrder)}
+                <Button onClick={handleUpdateWorkOrder} className="w-full mt-4">Guardar Cambios</Button>
+            </DialogContent>
+        </Dialog>
       </div>
     );
   };
@@ -771,9 +812,9 @@ export default function AdminDashboard() {
           <TabsTrigger value="data">Datos</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6"><OverviewTab /></TabsContent>
-        <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loadingClients} onDataChange={fetchClients} /></TabsContent>
-        <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} bicycles={bicycles} loading={loadingBicycles} onDataChange={fetchBicycles} /></TabsContent>
-        <TabsContent value="workorders" className="mt-6"><WorkOrdersTab clients={clients} /></TabsContent>
+        <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loading} onDataChange={fetchData} /></TabsContent>
+        <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} bicycles={bicycles} loading={loading} onDataChange={fetchData} /></TabsContent>
+        <TabsContent value="workorders" className="mt-6"><WorkOrdersTab clients={clients} bicycles={bicycles} workOrders={workOrders} loading={loading} onDataChange={fetchData} /></TabsContent>
         <TabsContent value="inventory" className="mt-6"><InventoryManagement /></TabsContent>
         <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
       </Tabs>
