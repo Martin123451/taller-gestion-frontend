@@ -19,8 +19,12 @@ import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, Timestamp } fro
 export default function AdminDashboard() {
   const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
+  
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+
+  const [bicycles, setBicycles] = useState<Bicycle[]>([]);
+  const [loadingBicycles, setLoadingBicycles] = useState(true);
 
   const fetchClients = async () => {
     setLoadingClients(true);
@@ -38,14 +42,29 @@ export default function AdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === 'clients' || activeTab === 'bicycles' || activeTab === 'workorders') {
-      fetchClients();
+  const fetchBicycles = async () => {
+    setLoadingBicycles(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, "bicycles"));
+      const bicyclesData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Bicycle[];
+      setBicycles(bicyclesData);
+    } catch (error) {
+      console.error("Error fetching bicycles: ", error);
+    } finally {
+      setLoadingBicycles(false);
     }
+  };
+
+  useEffect(() => {
+    fetchClients();
+    fetchBicycles();
   }, [activeTab]);
 
   const totalClients = clients.length;
-  const totalBicycles = state.bicycles.length;
+  const totalBicycles = bicycles.length;
   const openWorkOrders = state.workOrders.filter(wo => wo.status === 'open').length;
   const readyForDelivery = state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length;
 
@@ -199,8 +218,9 @@ export default function AdminDashboard() {
       if (!editingClient) return;
       try {
         const clientRef = doc(db, "clients", editingClient.id);
+        const { id, ...clientData } = editingClient;
         await updateDoc(clientRef, {
-          ...editingClient,
+          ...clientData,
           updatedAt: Timestamp.now()
         });
         setEditingClient(null);
@@ -337,22 +357,129 @@ export default function AdminDashboard() {
     );
   };
 
-  const BicyclesTab = ({ clients }: { clients: Client[] }) => {
-    const [showAddBicycle, setShowAddBicycle] = useState(false);
+  const BicyclesTab = ({ clients, bicycles, loading, onDataChange }: { clients: Client[], bicycles: Bicycle[], loading: boolean, onDataChange: () => void }) => {
+    const [isAddDialogOpen, setAddDialogOpen] = useState(false);
+    const [editingBicycle, setEditingBicycle] = useState<Bicycle | null>(null);
     const [newBicycle, setNewBicycle] = useState({ clientId: '', brand: '', model: '', type: 'mountain' as Bicycle['type'], color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
 
-    const handleAddBicycle = () => {
-      const bicycle: Bicycle = { id: `bike-${Date.now()}`, ...newBicycle, createdAt: new Date(), updatedAt: new Date() };
-      dispatch({ type: 'ADD_BICYCLE', payload: bicycle });
-      setNewBicycle({ clientId: '', brand: '', model: '', type: 'mountain', color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
-      setShowAddBicycle(false);
+    const handleAddBicycle = async () => {
+      if (!newBicycle.clientId || !newBicycle.brand || !newBicycle.model) {
+        alert("Cliente, marca y modelo son obligatorios.");
+        return;
+      }
+      try {
+        await addDoc(collection(db, "bicycles"), {
+          ...newBicycle,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+        setNewBicycle({ clientId: '', brand: '', model: '', type: 'mountain', color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
+        setAddDialogOpen(false);
+        onDataChange();
+      } catch (error) {
+        console.error("Error adding bicycle:", error);
+        alert("Hubo un error al guardar la bicicleta.");
+      }
     };
+    
+    const handleUpdateBicycle = async () => {
+      if (!editingBicycle) return;
+      try {
+        const bicycleRef = doc(db, "bicycles", editingBicycle.id);
+        const { id, ...bicycleData } = editingBicycle;
+        await updateDoc(bicycleRef, {
+          ...bicycleData,
+          updatedAt: Timestamp.now()
+        });
+        setEditingBicycle(null);
+        onDataChange();
+      } catch (error) {
+        console.error("Error updating bicycle:", error);
+        alert("Hubo un error al actualizar la bicicleta.");
+      }
+    };
+    
+    const handleDeleteBicycle = async (bicycleId: string) => {
+      if (window.confirm("¿Estás seguro de que quieres eliminar esta bicicleta?")) {
+        try {
+          await deleteDoc(doc(db, "bicycles", bicycleId));
+          onDataChange();
+        } catch (error) {
+          console.error("Error deleting bicycle:", error);
+          alert("Hubo un error al eliminar la bicicleta.");
+        }
+      }
+    };
+
+    const getClientName = (clientId: string) => {
+      return clients.find(c => c.id === clientId)?.name || 'N/A';
+    };
+
+    const bicycleForm = (bicycle: any, setBicycle: (data: any) => void) => (
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="clientId">Cliente</Label>
+          <Select value={bicycle.clientId} onValueChange={(value) => setBicycle({...bicycle, clientId: value})}>
+            <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+            <SelectContent>
+              {clients.map(client => (
+                <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="brand">Marca</Label>
+            <Input id="brand" value={bicycle.brand} onChange={(e) => setBicycle({...bicycle, brand: e.target.value})} placeholder="Trek, Giant, etc."/>
+          </div>
+          <div>
+            <Label htmlFor="model">Modelo</Label>
+            <Input id="model" value={bicycle.model} onChange={(e) => setBicycle({...bicycle, model: e.target.value})} placeholder="Marlin 7, Escape 3, etc."/>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="type">Tipo</Label>
+            <Select value={bicycle.type} onValueChange={(value: Bicycle['type']) => setBicycle({...bicycle, type: value})}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mountain">Montaña</SelectItem>
+                <SelectItem value="road">Ruta</SelectItem>
+                <SelectItem value="hybrid">Híbrida</SelectItem>
+                <SelectItem value="electric">Eléctrica</SelectItem>
+                <SelectItem value="bmx">BMX</SelectItem>
+                <SelectItem value="other">Otro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="color">Color</Label>
+            <Input id="color" value={bicycle.color} onChange={(e) => setBicycle({...bicycle, color: e.target.value})} placeholder="Azul, Rojo, etc."/>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="serialNumber">Número de Serie</Label>
+            <Input id="serialNumber" value={bicycle.serialNumber} onChange={(e) => setBicycle({...bicycle, serialNumber: e.target.value})} placeholder="Opcional"/>
+          </div>
+          <div>
+            <Label htmlFor="year">Año</Label>
+            <Input id="year" type="number" value={bicycle.year} onChange={(e) => setBicycle({...bicycle, year: parseInt(e.target.value)})}/>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="notes">Notas</Label>
+          <Textarea id="notes" value={bicycle.notes} onChange={(e) => setBicycle({...bicycle, notes: e.target.value})} placeholder="Observaciones adicionales"/>
+        </div>
+      </div>
+    );
 
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3>Gestión de Bicicletas</h3>
-          <Dialog open={showAddBicycle} onOpenChange={setShowAddBicycle}>
+          <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />Nueva Bicicleta</Button>
             </DialogTrigger>
@@ -361,10 +488,122 @@ export default function AdminDashboard() {
                 <DialogTitle>Agregar Nueva Bicicleta</DialogTitle>
                 <DialogDescription>Registra una nueva bicicleta en el sistema</DialogDescription>
               </DialogHeader>
+              {bicycleForm(newBicycle, setNewBicycle)}
+              <Button onClick={handleAddBicycle} className="w-full mt-4">Guardar Bicicleta</Button>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            {loading ? <p>Cargando bicicletas...</p> : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Marca/Modelo</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Año</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bicycles.map(bicycle => (
+                  <TableRow key={bicycle.id}>
+                    <TableCell>{getClientName(bicycle.clientId)}</TableCell>
+                    <TableCell>{bicycle.brand} {bicycle.model}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{bicycle.type.charAt(0).toUpperCase() + bicycle.type.slice(1)}</Badge>
+                    </TableCell>
+                    <TableCell>{bicycle.year}</TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => setEditingBicycle(bicycle)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteBicycle(bicycle.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Dialog open={!!editingBicycle} onOpenChange={(isOpen) => !isOpen && setEditingBicycle(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Bicicleta</DialogTitle>
+              <DialogDescription>Actualiza la información de la bicicleta.</DialogDescription>
+            </DialogHeader>
+            {editingBicycle && bicycleForm(editingBicycle, setEditingBicycle)}
+            <Button onClick={handleUpdateBicycle} className="w-full mt-4">Guardar Cambios</Button>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  };
+
+  const WorkOrdersTab = ({ clients }: { clients: Client[] }) => {
+    const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
+    const [newWorkOrder, setNewWorkOrder] = useState({
+      clientId: '',
+      bicycleId: '',
+      description: '',
+      estimatedDeliveryDate: ''
+    });
+
+    const handleAddWorkOrder = () => {
+      const client = state.clients.find(c => c.id === newWorkOrder.clientId);
+      const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
+
+      if (client && bicycle) {
+        const workOrder: WorkOrder = {
+          id: `wo-${Date.now()}`,
+          clientId: newWorkOrder.clientId,
+          client,
+          bicycleId: newWorkOrder.bicycleId,
+          bicycle,
+          description: newWorkOrder.description,
+          status: 'open',
+          services: [],
+          parts: [],
+          totalAmount: 0,
+          estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : undefined,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
+        setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+        setShowAddWorkOrder(false);
+      }
+    };
+
+    const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
+
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3>Gestión de Fichas de Trabajo</h3>
+          <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Ficha
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
+                <DialogDescription>Registra una nueva ficha de trabajo</DialogDescription>
+              </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="clientId">Cliente</Label>
-                  <Select value={newBicycle.clientId} onValueChange={(value) => setNewBicycle({...newBicycle, clientId: value})}>
+                  <Label htmlFor="clientId-wo">Cliente</Label>
+                  <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
                     <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
                     <SelectContent>
                       {clients.map(client => (
@@ -373,90 +612,91 @@ export default function AdminDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="brand">Marca</Label>
-                    <Input id="brand" value={newBicycle.brand} onChange={(e) => setNewBicycle({...newBicycle, brand: e.target.value})} placeholder="Trek, Giant, etc."/>
-                  </div>
-                  <div>
-                    <Label htmlFor="model">Modelo</Label>
-                    <Input id="model" value={newBicycle.model} onChange={(e) => setNewBicycle({...newBicycle, model: e.target.value})} placeholder="Marlin 7, Escape 3, etc."/>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="type">Tipo</Label>
-                    <Select value={newBicycle.type} onValueChange={(value: Bicycle['type']) => setNewBicycle({...newBicycle, type: value})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mountain">Montaña</SelectItem>
-                        <SelectItem value="road">Ruta</SelectItem>
-                        <SelectItem value="hybrid">Híbrida</SelectItem>
-                        <SelectItem value="electric">Eléctrica</SelectItem>
-                        <SelectItem value="bmx">BMX</SelectItem>
-                        <SelectItem value="other">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="color">Color</Label>
-                    <Input id="color" value={newBicycle.color} onChange={(e) => setNewBicycle({...newBicycle, color: e.target.value})} placeholder="Azul, Rojo, etc."/>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="serialNumber">Número de Serie</Label>
-                    <Input id="serialNumber" value={newBicycle.serialNumber} onChange={(e) => setNewBicycle({...newBicycle, serialNumber: e.target.value})} placeholder="Opcional"/>
-                  </div>
-                  <div>
-                    <Label htmlFor="year">Año</Label>
-                    <Input id="year" type="number" value={newBicycle.year} onChange={(e) => setNewBicycle({...newBicycle, year: parseInt(e.target.value)})}/>
-                  </div>
+                <div>
+                  <Label htmlFor="bicycleId-wo">Bicicleta</Label>
+                  <Select 
+                    value={newWorkOrder.bicycleId} 
+                    onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
+                    disabled={!newWorkOrder.clientId}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
+                    <SelectContent>
+                      {bicycles.filter(b => b.clientId === newWorkOrder.clientId).map(bicycle => (
+                        <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="notes">Notas</Label>
-                  <Textarea id="notes" value={newBicycle.notes} onChange={(e) => setNewBicycle({...newBicycle, notes: e.target.value})} placeholder="Observaciones adicionales"/>
+                  <Label htmlFor="description-wo">Descripción del Problema</Label>
+                  <Textarea
+                    id="description-wo"
+                    value={newWorkOrder.description}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
+                  />
                 </div>
-                <Button onClick={handleAddBicycle} className="w-full">Guardar Bicicleta</Button>
+                <div>
+                  <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
+                  <Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} />
+                </div>
+                <Button onClick={handleAddWorkOrder} className="w-full">
+                  Crear Ficha
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
+
         <Card>
           <CardContent className="pt-6">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Marca/Modelo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Año</TableHead>
+                  <TableHead>Bicicleta</TableHead>
+                  <TableHead>Fecha Ingreso</TableHead>
+                  <TableHead>Fecha Entrega Est.</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {state.bicycles.map(bicycle => {
-                  const client = clients.find(c => c.id === bicycle.clientId);
-                  return (
-                    <TableRow key={bicycle.id}>
-                      <TableCell>{client?.name}</TableCell>
-                      <TableCell>{bicycle.brand} {bicycle.model}</TableCell>
+                {state.workOrders
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .map(workOrder => (
+                    <TableRow key={workOrder.id}>
+                      <TableCell>#{workOrder.id.slice(-6)}</TableCell>
+                      <TableCell>{workOrder.client.name}</TableCell>
+                      <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
+                      <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">
-                          {bicycle.type === 'mountain' ? 'Montaña' :
-                           bicycle.type === 'road' ? 'Ruta' :
-                           bicycle.type === 'hybrid' ? 'Híbrida' :
-                           bicycle.type === 'electric' ? 'Eléctrica' :
-                           bicycle.type === 'bmx' ? 'BMX' : 'Otro'}
+                        <Badge variant={
+                          workOrder.status === 'open' ? 'default' :
+                          workOrder.status === 'in_progress' ? 'secondary' :
+                          workOrder.status === 'ready_for_delivery' ? 'outline' :
+                          'default'
+                        }>
+                          {workOrder.status === 'open' ? 'Abierta' :
+                           workOrder.status === 'in_progress' ? 'En Progreso' :
+                           workOrder.status === 'ready_for_delivery' ? 'Lista' :
+                           'Finalizada'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{bicycle.color}</TableCell>
-                      <TableCell>{bicycle.year}</TableCell>
-                      <TableCell><Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button></TableCell>
+                      <TableCell>
+                        {workOrder.status === 'ready_for_delivery' && (
+                          <Button 
+                            size="sm"
+                            onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Entregar
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  );
-                })}
+                  ))}
               </TableBody>
             </Table>
           </CardContent>
@@ -464,164 +704,6 @@ export default function AdminDashboard() {
       </div>
     );
   };
-
-  const WorkOrdersTab = ({ clients }: { clients: Client[] }) => {
-  const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
-  const [newWorkOrder, setNewWorkOrder] = useState({
-    clientId: '',
-    bicycleId: '',
-    description: '',
-    estimatedDeliveryDate: ''
-  });
-
-  const handleAddWorkOrder = () => {
-    const client = state.clients.find(c => c.id === newWorkOrder.clientId);
-    const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
-
-    if (client && bicycle) {
-      const workOrder: WorkOrder = {
-        id: `wo-${Date.now()}`,
-        clientId: newWorkOrder.clientId,
-        client,
-        bicycleId: newWorkOrder.bicycleId,
-        bicycle,
-        description: newWorkOrder.description,
-        status: 'open',
-        services: [],
-        parts: [],
-        totalAmount: 0,
-        estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : undefined,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
-      setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
-      setShowAddWorkOrder(false);
-    }
-  };
-
-  const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3>Gestión de Fichas de Trabajo</h3>
-        <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Ficha
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
-              <DialogDescription>Registra una nueva ficha de trabajo</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="clientId-wo">Cliente</Label>
-                <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
-                  <SelectContent>
-                    {state.clients.map(client => (
-                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="bicycleId-wo">Bicicleta</Label>
-                <Select 
-                  value={newWorkOrder.bicycleId} 
-                  onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
-                  disabled={!newWorkOrder.clientId}
-                >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
-                  <SelectContent>
-                    {availableBicycles.map(bicycle => (
-                      <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="description-wo">Descripción del Problema</Label>
-                <Textarea
-                  id="description-wo"
-                  value={newWorkOrder.description}
-                  onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
-                <Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} />
-              </div>
-              <Button onClick={handleAddWorkOrder} className="w-full">
-                Crear Ficha
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Bicicleta</TableHead>
-                <TableHead>Fecha Ingreso</TableHead>
-                <TableHead>Fecha Entrega Est.</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {state.workOrders
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map(workOrder => (
-                  <TableRow key={workOrder.id}>
-                    <TableCell>#{workOrder.id.slice(-6)}</TableCell>
-                    <TableCell>{workOrder.client.name}</TableCell>
-                    <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
-                    <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        workOrder.status === 'open' ? 'default' :
-                        workOrder.status === 'in_progress' ? 'secondary' :
-                        workOrder.status === 'ready_for_delivery' ? 'outline' :
-                        'default'
-                      }>
-                        {workOrder.status === 'open' ? 'Abierta' :
-                         workOrder.status === 'in_progress' ? 'En Progreso' :
-                         workOrder.status === 'ready_for_delivery' ? 'Lista' :
-                         'Finalizada'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {workOrder.status === 'ready_for_delivery' && (
-                        <Button 
-                          size="sm"
-                          onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Entregar
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
 
   const DataTab = () => (
     <div className="space-y-6">
@@ -648,7 +730,6 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
               <CardHeader><CardTitle>Gráfico 1 (Próximamente)</CardTitle></CardHeader>
@@ -663,7 +744,6 @@ export default function AdminDashboard() {
               </CardContent>
           </Card>
       </div>
-      
       <Card>
         <CardHeader>
           <CardTitle>Historial Detallado de Fichas</CardTitle>
@@ -681,8 +761,8 @@ export default function AdminDashboard() {
         <h1>Panel de Administración</h1>
         <p className="text-muted-foreground">Sistema de gestión del taller Merchant Bike</p>
       </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
           <TabsTrigger value="clients">Clientes</TabsTrigger>
           <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
@@ -690,24 +770,12 @@ export default function AdminDashboard() {
           <TabsTrigger value="inventory">Inventario</TabsTrigger>
           <TabsTrigger value="data">Datos</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="overview" className="mt-6">
-          <OverviewTab />
-        </TabsContent>
-        
+        <TabsContent value="overview" className="mt-6"><OverviewTab /></TabsContent>
         <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loadingClients} onDataChange={fetchClients} /></TabsContent>
-        
-        <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} /></TabsContent>
-        
+        <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} bicycles={bicycles} loading={loadingBicycles} onDataChange={fetchBicycles} /></TabsContent>
         <TabsContent value="workorders" className="mt-6"><WorkOrdersTab clients={clients} /></TabsContent>
-
-        <TabsContent value="inventory" className="mt-6">
-          <InventoryManagement />
-        </TabsContent>
-
-        <TabsContent value="data" className="mt-6">
-          <DataTab />
-        </TabsContent>
+        <TabsContent value="inventory" className="mt-6"><InventoryManagement /></TabsContent>
+        <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
       </Tabs>
     </div>
   );
