@@ -13,10 +13,13 @@ import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Down
 import { useApp } from '../contexts/AppContext';
 import { Client, Bicycle, WorkOrder } from '../lib/types';
 import InventoryManagement from './InventoryManagement';
+import ClientSearchCombobox from './ClientSearchCombobox';
 
 export default function AdminDashboard() {
   const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
+  const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
+  
 
   // Statistics
   const totalClients = state.clients.length;
@@ -74,10 +77,20 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+          <div>
             <CardTitle>Fichas Recientes</CardTitle>
             <CardDescription>Últimas fichas de trabajo creadas</CardDescription>
-          </CardHeader>
+          </div>
+          <Dialog>
+              <DialogTrigger asChild>
+                  <Button size="sm"><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button>
+              </DialogTrigger>
+              <DialogContent>
+                  <WorkOrdersTab isModal={true} />
+              </DialogContent>
+          </Dialog>
+        </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {state.workOrders
@@ -150,8 +163,9 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const ClientsTab = () => {
-    const [showAddClient, setShowAddClient] = useState(false);
+  const ClientsTab = ({ isModal = false, closeModal }: { isModal?: boolean, closeModal?: () => void }) => {
+    // El estado ahora depende de si estamos en un modal para mostrar el formulario inmediatamente
+    const [showAddClient, setShowAddClient] = useState(isModal);
     const [newClient, setNewClient] = useState({
       name: '',
       email: '',
@@ -169,113 +183,102 @@ export default function AdminDashboard() {
       dispatch({ type: 'ADD_CLIENT', payload: client });
       setNewClient({ name: '', email: '', phone: '', address: '' });
       setShowAddClient(false);
+      // Si estamos en un modal, llamamos a la función para cerrarlo
+      if (isModal && closeModal) {
+        closeModal();
+      }
     };
 
     return (
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3>Gestión de Clientes</h3>
-          <Dialog open={showAddClient} onOpenChange={setShowAddClient}>
-            <DialogTrigger asChild>
-              <Button>
+        {/* El encabezado y la tabla solo se muestran si NO estamos en un modal */}
+        {!isModal && (
+          <>
+            <div className="flex justify-between items-center">
+              <h3>Gestión de Clientes</h3>
+              {/* Este botón ahora solo controla el estado para la vista de pestaña */}
+              <Button onClick={() => setShowAddClient(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nuevo Cliente
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Agregar Nuevo Cliente</DialogTitle>
-                <DialogDescription>
-                  Completa la información del cliente
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Nombre Completo</Label>
-                  <Input
-                    id="name"
-                    value={newClient.name}
-                    onChange={(e) => setNewClient({...newClient, name: e.target.value})}
-                    placeholder="Juan Pérez"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newClient.email}
-                    onChange={(e) => setNewClient({...newClient, email: e.target.value})}
-                    placeholder="juan@email.com"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <Input
-                    id="phone"
-                    value={newClient.phone}
-                    onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
-                    placeholder="+56912345678"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">Dirección</Label>
-                  <Textarea
-                    id="address"
-                    value={newClient.address}
-                    onChange={(e) => setNewClient({...newClient, address: e.target.value})}
-                    placeholder="Dirección completa"
-                  />
-                </div>
-                <Button onClick={handleAddClient} className="w-full">
-                  Guardar Cliente
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <Card>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Bicicletas</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {state.clients.map(client => {
-                  const clientBicycles = state.bicycles.filter(b => b.clientId === client.id);
-                  return (
-                    <TableRow key={client.id}>
-                      <TableCell>{client.name}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell>{client.phone}</TableCell>
-                      <TableCell>{clientBicycles.length}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+            </div>
+            <Card>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Teléfono</TableHead>
+                      <TableHead>Bicicletas</TableHead>
+                      <TableHead>Acciones</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {state.clients.map(client => {
+                      const clientBicycles = state.bicycles.filter(b => b.clientId === client.id);
+                      return (
+                        <TableRow key={client.id}>
+                          <TableCell>{client.name}</TableCell>
+                          <TableCell>{client.email}</TableCell>
+                          <TableCell>{client.phone}</TableCell>
+                          <TableCell>{clientBicycles.length}</TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* El Dialog ahora siempre está presente, pero se controla con el estado 'showAddClient' */}
+        <Dialog open={showAddClient} onOpenChange={setShowAddClient}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Agregar Nuevo Cliente</DialogTitle>
+              <DialogDescription>
+                Completa la información del cliente
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Nombre Completo</Label>
+                <Input id="name" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} placeholder="Juan Pérez" />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} placeholder="juan@email.com" />
+              </div>
+              <div>
+                <Label htmlFor="phone">Teléfono</Label>
+                <Input id="phone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} placeholder="+56912345678" />
+              </div>
+              <div>
+                <Label htmlFor="address">Dirección</Label>
+                <Textarea id="address" value={newClient.address || ''} onChange={(e) => setNewClient({ ...newClient, address: e.target.value })} placeholder="Dirección completa" />
+              </div>
+              <Button onClick={handleAddClient} className="w-full">
+                Guardar Cliente
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   };
 
-  const BicyclesTab = () => {
-    const [showAddBicycle, setShowAddBicycle] = useState(false);
+  const BicyclesTab = ({ isModal = false, closeModal, selectedClientId }: { isModal?: boolean, closeModal?: () => void, selectedClientId?: string }) => {
+    // El estado ahora depende de si estamos en un modal para mostrar el formulario inmediatamente
+    const [showAddBicycle, setShowAddBicycle] = useState(isModal);
     const [newBicycle, setNewBicycle] = useState({
-      clientId: '',
+      clientId: selectedClientId || '',
       brand: '',
       model: '',
       type: 'mountain' as const,
@@ -293,340 +296,272 @@ export default function AdminDashboard() {
         updatedAt: new Date()
       };
       dispatch({ type: 'ADD_BICYCLE', payload: bicycle });
+      // Limpiamos el formulario después de guardar
       setNewBicycle({
-        clientId: '',
-        brand: '',
-        model: '',
-        type: 'mountain',
-        color: '',
-        serialNumber: '',
-        year: new Date().getFullYear(),
-        notes: ''
+        clientId: selectedClientId || '', brand: '', model: '', type: 'mountain', color: '',
+        serialNumber: '', year: new Date().getFullYear(), notes: ''
       });
       setShowAddBicycle(false);
+      // Si estamos en un modal, llamamos a la función para cerrarlo
+      if (isModal && closeModal) {
+        closeModal();
+      }
     };
 
     return (
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3>Gestión de Bicicletas</h3>
-          <Dialog open={showAddBicycle} onOpenChange={setShowAddBicycle}>
-            <DialogTrigger asChild>
-              <Button>
+        {/* El encabezado y la tabla solo se muestran si NO estamos en un modal */}
+        {!isModal && (
+          <>
+            <div className="flex justify-between items-center">
+              <h3>Gestión de Bicicletas</h3>
+              <Button onClick={() => setShowAddBicycle(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Bicicleta
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Agregar Nueva Bicicleta</DialogTitle>
-                <DialogDescription>
-                  Registra una nueva bicicleta en el sistema
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="clientId">Cliente</Label>
-                  <Select value={newBicycle.clientId} onValueChange={(value) => setNewBicycle({...newBicycle, clientId: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {state.clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="brand">Marca</Label>
-                    <Input
-                      id="brand"
-                      value={newBicycle.brand}
-                      onChange={(e) => setNewBicycle({...newBicycle, brand: e.target.value})}
-                      placeholder="Trek, Giant, etc."
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="model">Modelo</Label>
-                    <Input
-                      id="model"
-                      value={newBicycle.model}
-                      onChange={(e) => setNewBicycle({...newBicycle, model: e.target.value})}
-                      placeholder="Marlin 7, Escape 3, etc."
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="type">Tipo</Label>
-                    <Select value={newBicycle.type} onValueChange={(value: any) => setNewBicycle({...newBicycle, type: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mountain">Montaña</SelectItem>
-                        <SelectItem value="road">Ruta</SelectItem>
-                        <SelectItem value="hybrid">Híbrida</SelectItem>
-                        <SelectItem value="electric">Eléctrica</SelectItem>
-                        <SelectItem value="bmx">BMX</SelectItem>
-                        <SelectItem value="other">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="color">Color</Label>
-                    <Input
-                      id="color"
-                      value={newBicycle.color}
-                      onChange={(e) => setNewBicycle({...newBicycle, color: e.target.value})}
-                      placeholder="Azul, Rojo, etc."
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="serialNumber">Número de Serie</Label>
-                    <Input
-                      id="serialNumber"
-                      value={newBicycle.serialNumber}
-                      onChange={(e) => setNewBicycle({...newBicycle, serialNumber: e.target.value})}
-                      placeholder="Opcional"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="year">Año</Label>
-                    <Input
-                      id="year"
-                      type="number"
-                      value={newBicycle.year}
-                      onChange={(e) => setNewBicycle({...newBicycle, year: parseInt(e.target.value)})}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="notes">Notas</Label>
-                  <Textarea
-                    id="notes"
-                    value={newBicycle.notes}
-                    onChange={(e) => setNewBicycle({...newBicycle, notes: e.target.value})}
-                    placeholder="Observaciones adicionales"
-                  />
-                </div>
-                <Button onClick={handleAddBicycle} className="w-full">
-                  Guardar Bicicleta
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <Card>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Marca/Modelo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Año</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {state.bicycles.map(bicycle => {
-                  const client = state.clients.find(c => c.id === bicycle.clientId);
-                  return (
-                    <TableRow key={bicycle.id}>
-                      <TableCell>{client?.name}</TableCell>
-                      <TableCell>{bicycle.brand} {bicycle.model}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {bicycle.type === 'mountain' ? 'Montaña' :
-                           bicycle.type === 'road' ? 'Ruta' :
-                           bicycle.type === 'hybrid' ? 'Híbrida' :
-                           bicycle.type === 'electric' ? 'Eléctrica' :
-                           bicycle.type === 'bmx' ? 'BMX' : 'Otro'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{bicycle.color}</TableCell>
-                      <TableCell>{bicycle.year}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+            </div>
+            <Card>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Marca/Modelo</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead>Año</TableHead>
+                      <TableHead>Acciones</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
+                  </TableHeader>
+                  <TableBody>
+                    {state.bicycles.map(bicycle => {
+                      const client = state.clients.find(c => c.id === bicycle.clientId);
+                      return (
+                        <TableRow key={bicycle.id}>
+                          <TableCell>{client?.name}</TableCell>
+                          <TableCell>{bicycle.brand} {bicycle.model}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {bicycle.type.charAt(0).toUpperCase() + bicycle.type.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{bicycle.color}</TableCell>
+                          <TableCell>{bicycle.year}</TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </>
+        )}
 
-  const WorkOrdersTab = () => {
-  const [showAddWorkOrder, setShowAddWorkOrder] = useState(false);
-  const [newWorkOrder, setNewWorkOrder] = useState({
-    clientId: '',
-    bicycleId: '',
-    description: '',
-    estimatedDeliveryDate: ''
-  });
-
-  const handleAddWorkOrder = () => {
-    const client = state.clients.find(c => c.id === newWorkOrder.clientId);
-    const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
-
-    if (client && bicycle) {
-      const workOrder: WorkOrder = {
-        id: `wo-${Date.now()}`,
-        clientId: newWorkOrder.clientId,
-        client,
-        bicycleId: newWorkOrder.bicycleId,
-        bicycle,
-        description: newWorkOrder.description,
-        status: 'open',
-        services: [],
-        parts: [],
-        totalAmount: 0,
-        estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : undefined,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
-      setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
-      setShowAddWorkOrder(false);
-    }
-  };
-
-  const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3>Gestión de Fichas de Trabajo</h3>
-        <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Ficha
-            </Button>
-          </DialogTrigger>
+        {/* El Dialog ahora siempre está presente, pero se controla con el estado 'showAddBicycle' */}
+        <Dialog open={showAddBicycle} onOpenChange={setShowAddBicycle}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
+              <DialogTitle>Agregar Nueva Bicicleta</DialogTitle>
+              <DialogDescription>
+                Registra una nueva bicicleta en el sistema
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="clientId">Cliente</Label>
-                <Select value={newWorkOrder.clientId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, clientId: value, bicycleId: ''})}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+                <Select value={newBicycle.clientId} onValueChange={(value) => setNewBicycle({ ...newBicycle, clientId: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar cliente" />
+                  </SelectTrigger>
                   <SelectContent>
                     {state.clients.map(client => (
-                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="bicycleId">Bicicleta</Label>
-                <Select 
-                  value={newWorkOrder.bicycleId} 
-                  onValueChange={(value) => setNewWorkOrder({...newWorkOrder, bicycleId: value})}
-                  disabled={!newWorkOrder.clientId}
-                >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
-                  <SelectContent>
-                    {availableBicycles.map(bicycle => (
-                      <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label htmlFor="brand">Marca</Label><Input id="brand" value={newBicycle.brand} onChange={(e) => setNewBicycle({ ...newBicycle, brand: e.target.value })} placeholder="Trek, Giant, etc." /></div>
+                <div><Label htmlFor="model">Modelo</Label><Input id="model" value={newBicycle.model} onChange={(e) => setNewBicycle({ ...newBicycle, model: e.target.value })} placeholder="Marlin 7, Escape 3, etc." /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label htmlFor="type">Tipo</Label><Select value={newBicycle.type} onValueChange={(value: any) => setNewBicycle({ ...newBicycle, type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="mountain">Montaña</SelectItem><SelectItem value="road">Ruta</SelectItem><SelectItem value="hybrid">Híbrida</SelectItem><SelectItem value="electric">Eléctrica</SelectItem><SelectItem value="bmx">BMX</SelectItem><SelectItem value="other">Otro</SelectItem></SelectContent></Select></div>
+                <div><Label htmlFor="color">Color</Label><Input id="color" value={newBicycle.color} onChange={(e) => setNewBicycle({ ...newBicycle, color: e.target.value })} placeholder="Azul, Rojo, etc." /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label htmlFor="serialNumber">Número de Serie</Label><Input id="serialNumber" value={newBicycle.serialNumber || ''} onChange={(e) => setNewBicycle({ ...newBicycle, serialNumber: e.target.value })} placeholder="Opcional" /></div>
+                <div><Label htmlFor="year">Año</Label><Input id="year" type="number" value={newBicycle.year} onChange={(e) => setNewBicycle({ ...newBicycle, year: parseInt(e.target.value) })} /></div>
               </div>
               <div>
-                <Label htmlFor="description">Descripción del Problema</Label>
-                <Textarea
-                  id="description"
-                  value={newWorkOrder.description}
-                  onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
-                />
+                <Label htmlFor="notes">Notas</Label>
+                <Textarea id="notes" value={newBicycle.notes || ''} onChange={(e) => setNewBicycle({ ...newBicycle, notes: e.target.value })} placeholder="Observaciones adicionales" />
               </div>
-              <div>
-                <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
-                <Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} />
-              </div>
-              <Button onClick={handleAddWorkOrder} className="w-full">
-                Crear Ficha
+              <Button onClick={handleAddBicycle} className="w-full">
+                Guardar Bicicleta
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
+    );
+  };
 
-      <Card>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Bicicleta</TableHead>
-                <TableHead>Fecha Ingreso</TableHead>
-                <TableHead>Fecha Entrega Est.</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {state.workOrders
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map(workOrder => (
-                  <TableRow key={workOrder.id}>
-                    <TableCell>#{workOrder.id.slice(-6)}</TableCell>
-                    <TableCell>{workOrder.client.name}</TableCell>
-                    <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
-                    <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        workOrder.status === 'open' ? 'default' :
-                        workOrder.status === 'in_progress' ? 'secondary' :
-                        workOrder.status === 'ready_for_delivery' ? 'outline' :
-                        'default'
-                      }>
-                        {workOrder.status === 'open' ? 'Abierta' :
-                         workOrder.status === 'in_progress' ? 'En Progreso' :
-                         workOrder.status === 'ready_for_delivery' ? 'Lista' :
-                         'Finalizada'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {workOrder.status === 'ready_for_delivery' && (
-                        <Button 
-                          size="sm"
-                          onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Entregar
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+  const WorkOrdersTab = ({ isModal = false, closeModal, isOpen, onOpenChange }: { isModal?: boolean, closeModal?: () => void, isOpen?: boolean, onOpenChange?: (open: boolean) => void }) => {
+    const showAddWorkOrder = isModal ? true : isOpen;
+    const setShowAddWorkOrder = isModal ? closeModal : onOpenChange;
+    const [showAddClient, setShowAddClient] = useState(false);
+    const [showAddBicycle, setShowAddBicycle] = useState(false);
+    const [newWorkOrder, setNewWorkOrder] = useState({
+      clientId: '',
+      bicycleId: '',
+      description: '',
+      estimatedDeliveryDate: ''
+    });
+
+    const handleAddWorkOrder = () => {
+      const client = state.clients.find(c => c.id === newWorkOrder.clientId);
+      const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
+
+      if (client && bicycle) {
+        const workOrder: WorkOrder = {
+          id: `wo-${Date.now()}`,
+          clientId: newWorkOrder.clientId, client,
+          bicycleId: newWorkOrder.bicycleId, bicycle,
+          description: newWorkOrder.description,
+          status: 'open',
+          services: [], parts: [], totalAmount: 0,
+          estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : undefined,
+          createdAt: new Date(), updatedAt: new Date()
+        };
+        dispatch({ type: 'ADD_WORK_ORDER', payload: workOrder });
+        setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+        setShowAddWorkOrder(false);
+        if(isModal && closeModal) closeModal();
+      }
+    };
+
+    const availableBicycles = state.bicycles.filter(b => b.clientId === newWorkOrder.clientId);
+
+    // Sub-componente para el formulario para no repetir código
+    const FormContent = () => (
+        <>
+            <DialogHeader>
+                <DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+                <div>
+                    <Label htmlFor="clientId">Cliente</Label>
+                    <ClientSearchCombobox
+                        selectedClientId={newWorkOrder.clientId}
+                        onSelectClient={(clientId) => setNewWorkOrder({ ...newWorkOrder, clientId, bicycleId: '' })}
+                        onAddNewClient={() => setShowAddClient(true)}
+                    />
+                </div>
+                <div className="flex items-end gap-2">
+                    <div className="flex-grow">
+                        <Label htmlFor="bicycleId">Bicicleta</Label>
+                        <Select value={newWorkOrder.bicycleId} onValueChange={(value) => setNewWorkOrder({ ...newWorkOrder, bicycleId: value })} disabled={!newWorkOrder.clientId}>
+                            <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
+                            <SelectContent>{availableBicycles.map(bicycle => (<SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>))}</SelectContent>
+                        </Select>
+                    </div>
+                    <Button variant="outline" size="icon" onClick={() => setShowAddBicycle(true)} disabled={!newWorkOrder.clientId}><Plus className="h-4 w-4" /></Button>
+                </div>
+                <div>
+                    <Label htmlFor="description">Descripción del Problema</Label>
+                    <Textarea id="description" value={newWorkOrder.description} onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})} />
+                </div>
+                <div>
+                    <Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label>
+                    <Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} />
+                </div>
+                <Button onClick={handleAddWorkOrder} className="w-full">Crear Ficha</Button>
+            </div>
+        </>
+    );
+
+    return (
+      <div className="space-y-4">
+        {!isModal && (
+            <div className="flex justify-between items-center">
+                <h3>Gestión de Fichas de Trabajo</h3>
+                <Dialog open={showAddWorkOrder} onOpenChange={setShowAddWorkOrder}>
+                    <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button></DialogTrigger>
+                    <DialogContent><FormContent /></DialogContent>
+                </Dialog>
+            </div>
+        )}
+
+        {isModal && <FormContent />}
+
+        {!isModal && (
+          <Card>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>ID</TableHead><TableHead>Cliente</TableHead><TableHead>Bicicleta</TableHead><TableHead>Fecha Ingreso</TableHead><TableHead>Fecha Entrega Est.</TableHead><TableHead>Estado</TableHead><TableHead>Acciones</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {state.workOrders
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map(workOrder => (
+                      <TableRow key={workOrder.id}>
+                        <TableCell>#{workOrder.id.slice(-6)}</TableCell>
+                        <TableCell>{workOrder.client.name}</TableCell>
+                        <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
+                        <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            workOrder.status === 'open' ? 'default' :
+                            workOrder.status === 'in_progress' ? 'secondary' :
+                            workOrder.status === 'ready_for_delivery' ? 'outline' :
+                            'default'
+                          }>
+                            {workOrder.status === 'open' ? 'Abierta' :
+                            workOrder.status === 'in_progress' ? 'En Progreso' :
+                            workOrder.status === 'ready_for_delivery' ? 'Lista' :
+                            'Finalizada'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {workOrder.status === 'ready_for_delivery' && (
+                            <Button size="sm" onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}>
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                              Entregar
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        <Dialog open={showAddClient} onOpenChange={setShowAddClient}>
+          <DialogContent>
+            <ClientsTab isModal={true} closeModal={() => setShowAddClient(false)} />
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showAddBicycle} onOpenChange={setShowAddBicycle}>
+          <DialogContent>
+            <BicyclesTab isModal={true} closeModal={() => setShowAddBicycle(false)} selectedClientId={newWorkOrder.clientId} />
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  };
 
   const DataTab = () => (
     <div className="space-y-6">
