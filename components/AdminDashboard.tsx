@@ -9,12 +9,12 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download } from 'lucide-react';
+import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download, Trash2 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { Client, Bicycle, WorkOrder } from '../lib/types';
 import InventoryManagement from './InventoryManagement';
 import { db } from '../firebase/config';
-import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const { state, dispatch } = useApp();
@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [loadingClients, setLoadingClients] = useState(true);
 
   const fetchClients = async () => {
+    setLoadingClients(true);
     try {
       const querySnapshot = await getDocs(collection(db, "clients"));
       const clientsData = querySnapshot.docs.map(doc => ({
@@ -169,8 +170,9 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const ClientsTab = ({ clients, loading, onClientAdded }: { clients: Client[], loading: boolean, onClientAdded: () => void }) => {
-    const [showAddClient, setShowAddClient] = useState(false);
+  const ClientsTab = ({ clients, loading, onDataChange }: { clients: Client[], loading: boolean, onDataChange: () => void }) => {
+    const [isAddDialogOpen, setAddDialogOpen] = useState(false);
+    const [editingClient, setEditingClient] = useState<Client | null>(null);
     const [newClient, setNewClient] = useState({ name: '', email: '', phone: '', address: '' });
 
     const handleAddClient = async () => {
@@ -185,11 +187,39 @@ export default function AdminDashboard() {
           updatedAt: Timestamp.now()
         });
         setNewClient({ name: '', email: '', phone: '', address: '' });
-        setShowAddClient(false);
-        onClientAdded();
+        setAddDialogOpen(false);
+        onDataChange();
       } catch (error) {
         console.error("Error adding client: ", error);
         alert("Hubo un error al guardar el cliente.");
+      }
+    };
+
+    const handleUpdateClient = async () => {
+      if (!editingClient) return;
+      try {
+        const clientRef = doc(db, "clients", editingClient.id);
+        await updateDoc(clientRef, {
+          ...editingClient,
+          updatedAt: Timestamp.now()
+        });
+        setEditingClient(null);
+        onDataChange();
+      } catch (error) {
+        console.error("Error updating client: ", error);
+        alert("Hubo un error al actualizar el cliente.");
+      }
+    };
+
+    const handleDeleteClient = async (clientId: string) => {
+      if (window.confirm("¿Estás seguro de que quieres eliminar este cliente? Esta acción no se puede deshacer.")) {
+        try {
+          await deleteDoc(doc(db, "clients", clientId));
+          onDataChange();
+        } catch (error) {
+          console.error("Error deleting client: ", error);
+          alert("Hubo un error al eliminar el cliente.");
+        }
       }
     };
 
@@ -197,7 +227,7 @@ export default function AdminDashboard() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3>Gestión de Clientes</h3>
-          <Dialog open={showAddClient} onOpenChange={setShowAddClient}>
+          <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -211,7 +241,7 @@ export default function AdminDashboard() {
                   Completa la información del cliente
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 py-4">
                 <div>
                   <Label htmlFor="name">Nombre Completo</Label>
                   <Input id="name" value={newClient.name} onChange={(e) => setNewClient({...newClient, name: e.target.value})} placeholder="Juan Pérez"/>
@@ -237,7 +267,7 @@ export default function AdminDashboard() {
         </div>
 
         <Card>
-          <CardContent>
+          <CardContent className="pt-6">
             {loading ? <p>Cargando clientes...</p> : (
               <Table>
                 <TableHeader>
@@ -245,32 +275,64 @@ export default function AdminDashboard() {
                     <TableHead>Nombre</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Teléfono</TableHead>
-                    <TableHead>Bicicletas</TableHead>
-                    <TableHead>Acciones</TableHead>
+                    <TableHead className="text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients.map(client => {
-                    const clientBicycles = state.bicycles.filter(b => b.clientId === client.id);
-                    return (
-                      <TableRow key={client.id}>
-                        <TableCell>{client.name}</TableCell>
-                        <TableCell>{client.email}</TableCell>
-                        <TableCell>{client.phone}</TableCell>
-                        <TableCell>{clientBicycles.length}</TableCell>
-                        <TableCell>
-                          <Button variant="outline" size="sm">
+                  {clients.map(client => (
+                    <TableRow key={client.id}>
+                      <TableCell>{client.name}</TableCell>
+                      <TableCell>{client.email}</TableCell>
+                      <TableCell>{client.phone}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                           <Button variant="outline" size="sm" onClick={() => setEditingClient(client)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          <Button variant="destructive" size="sm" onClick={() => handleDeleteClient(client.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={!!editingClient} onOpenChange={(isOpen) => !isOpen && setEditingClient(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Cliente</DialogTitle>
+              <DialogDescription>
+                Actualiza la información del cliente.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="edit-name">Nombre Completo</Label>
+                <Input id="edit-name" value={editingClient?.name || ''} onChange={(e) => setEditingClient(prev => prev ? {...prev, name: e.target.value} : null)}/>
+              </div>
+              <div>
+                <Label htmlFor="edit-email">Email</Label>
+                <Input id="edit-email" type="email" value={editingClient?.email || ''} onChange={(e) => setEditingClient(prev => prev ? {...prev, email: e.target.value} : null)} />
+              </div>
+              <div>
+                <Label htmlFor="edit-phone">Teléfono</Label>
+                <Input id="edit-phone" value={editingClient?.phone || ''} onChange={(e) => setEditingClient(prev => prev ? {...prev, phone: e.target.value} : null)} />
+              </div>
+              <div>
+                <Label htmlFor="edit-address">Dirección</Label>
+                <Textarea id="edit-address" value={editingClient?.address || ''} onChange={(e) => setEditingClient(prev => prev ? {...prev, address: e.target.value} : null)} />
+              </div>
+              <Button onClick={handleUpdateClient} className="w-full">
+                Guardar Cambios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   };
@@ -361,7 +423,7 @@ export default function AdminDashboard() {
           </Dialog>
         </div>
         <Card>
-          <CardContent>
+          <CardContent className="pt-6">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -504,7 +566,7 @@ export default function AdminDashboard() {
       </div>
 
       <Card>
-        <CardContent>
+        <CardContent className="pt-6">
           <Table>
             <TableHeader>
               <TableRow>
@@ -633,7 +695,7 @@ export default function AdminDashboard() {
           <OverviewTab />
         </TabsContent>
         
-        <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loadingClients} onClientAdded={fetchClients} /></TabsContent>
+        <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loadingClients} onDataChange={fetchClients} /></TabsContent>
         
         <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} /></TabsContent>
         
