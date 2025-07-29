@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -16,7 +16,8 @@ import { db } from '../firebase/config';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import ClientSearchCombobox from './ClientSearchCombobox';
 
-type ModalType = 'addWorkOrder' | 'addClientFromWorkOrder' | 'addBicycleFromWorkOrder';
+// Eliminamos ModalType ya que no se usará
+// type ModalType = 'addWorkOrder' | 'addClientFromWorkOrder' | 'addBicycleFromWorkOrder';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -26,26 +27,51 @@ export default function AdminDashboard() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeModal, setActiveModal] = useState<ModalType | null>(null);
+  // --- CAMBIO: Se reemplaza activeModal por estados booleanos individuales ---
+  const [isWorkOrderModalOpen, setWorkOrderModalOpen] = useState(false);
+  const [isClientModalOpen, setClientModalOpen] = useState(false);
+  const [isBicycleModalOpen, setBicycleModalOpen] = useState(false);
+  // --------------------------------------------------------------------------
+
   const [workOrderFormState, setWorkOrderFormState] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Para asegurar que los tipos de fecha son correctos, los convertimos aquí
       const clientsSnapshot = await getDocs(collection(db, "clients"));
-      const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Client[];
+      const clientsData = clientsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          createdAt: data.createdAt.toDate(),
+          updatedAt: data.updatedAt.toDate()
+        } as Client;
+      });
       
       const bicyclesSnapshot = await getDocs(collection(db, "bicycles"));
-      const bicyclesData = bicyclesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Bicycle[];
+      const bicyclesData = bicyclesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          createdAt: data.createdAt.toDate(),
+          updatedAt: data.updatedAt.toDate()
+        } as Bicycle;
+      });
 
       const workOrdersSnapshot = await getDocs(collection(db, "workorders"));
       const workOrdersData = workOrdersSnapshot.docs.map(doc => {
         const data = doc.data();
-        const client = clientsData.find(c => c.id === data.clientId);
-        const bicycle = bicyclesData.find(b => b.id === data.bicycleId);
-        const estimatedDeliveryDate = data.estimatedDeliveryDate?.toDate();
         return {
-          id: doc.id, ...data, client, bicycle, estimatedDeliveryDate
+          id: doc.id,
+          ...data,
+          client: clientsData.find(c => c.id === data.clientId),
+          bicycle: bicyclesData.find(b => b.id === data.bicycleId),
+          estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),
+          createdAt: data.createdAt.toDate(),
+          updatedAt: data.updatedAt.toDate()
         } as WorkOrder;
       });
 
@@ -62,6 +88,24 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // --- CAMBIO: Funciones explícitas para manejar el flujo de modales ---
+  const openClientModalFromWorkOrder = () => {
+    setWorkOrderModalOpen(false);
+    setClientModalOpen(true);
+  };
+
+  const openBicycleModalFromWorkOrder = () => {
+    setWorkOrderModalOpen(false);
+    setBicycleModalOpen(true);
+  };
+  
+  const returnToWorkOrderModal = () => {
+    setClientModalOpen(false);
+    setBicycleModalOpen(false);
+    setWorkOrderModalOpen(true);
+  };
+  // ---------------------------------------------------------------------
 
   const totalClients = clients.length;
   const totalBicycles = bicycles.length;
@@ -80,18 +124,18 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div><CardTitle>Fichas Recientes</CardTitle><CardDescription>Últimas fichas de trabajo creadas</CardDescription></div>
-            <Button size="sm" onClick={() => setActiveModal('addWorkOrder')}><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button>
+            <Button size="sm" onClick={() => setWorkOrderModalOpen(true)}><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {workOrders
                 .filter(wo => wo.status === 'open' || wo.status === 'in_progress')
-                .sort((a, b) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())).slice(0, 5)
+                .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 5)
                 .map(workOrder => (
                   <div key={workOrder.id} className="flex items-center justify-between p-3 border rounded">
                     <div className="space-y-1"><p className="text-sm">{workOrder.client?.name}</p><p className="text-xs text-muted-foreground">{workOrder.bicycle?.brand} {workOrder.bicycle?.model}</p></div>
                     <div className="text-right"><Badge variant={workOrder.status === 'open' ? 'default' : 'secondary'}>{workOrder.status === 'open' ? 'Abierta' : 'En Progreso'}</Badge>
-                      {workOrder.estimatedDeliveryDate && (<p className="text-xs text-muted-foreground mt-1">Entrega: {new Date(workOrder.estimatedDeliveryDate).toLocaleDateString()}</p>)}
+                      {workOrder.estimatedDeliveryDate && (<p className="text-xs text-muted-foreground mt-1">Entrega: {workOrder.estimatedDeliveryDate.toLocaleDateString()}</p>)}
                     </div>
                   </div>
                 ))}
@@ -124,31 +168,64 @@ export default function AdminDashboard() {
         <TabsContent value="overview" className="mt-6"><OverviewTab /></TabsContent>
         <TabsContent value="clients" className="mt-6"><ClientsTab clients={clients} loading={loading} onDataChange={fetchData} /></TabsContent>
         <TabsContent value="bicycles" className="mt-6"><BicyclesTab clients={clients} bicycles={bicycles} loading={loading} onDataChange={fetchData} /></TabsContent>
-        <TabsContent value="workorders" className="mt-6"><WorkOrdersTab clients={clients} bicycles={bicycles} workOrders={workOrders} loading={loading} onDataChange={fetchData} setActiveModal={setActiveModal} /></TabsContent>
+        <TabsContent value="workorders" className="mt-6"><WorkOrdersTab workOrders={workOrders} loading={loading} onDataChange={fetchData} openModal={() => setWorkOrderModalOpen(true)} /></TabsContent>
         <TabsContent value="inventory" className="mt-6"><InventoryManagement /></TabsContent>
         <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
       </Tabs>
 
-      <Dialog open={activeModal === 'addWorkOrder'} onOpenChange={(isOpen) => !isOpen && setActiveModal(null)}>
+      {/* --- CAMBIO: Lógica de modales actualizada y simplificada --- */}
+      <Dialog open={isWorkOrderModalOpen} onOpenChange={setWorkOrderModalOpen}>
         <DialogContent className="max-w-2xl">
-          <WorkOrderForm clients={clients} bicycles={bicycles} onDataChange={fetchData} setActiveModal={setActiveModal} formState={workOrderFormState} setFormState={setWorkOrderFormState} closeModal={() => setActiveModal(null)}/>
+          <WorkOrderForm 
+            clients={clients} 
+            bicycles={bicycles} 
+            onDataChange={fetchData} 
+            formState={workOrderFormState} 
+            setFormState={setWorkOrderFormState} 
+            closeModal={() => setWorkOrderModalOpen(false)}
+            onAddNewClient={openClientModalFromWorkOrder}
+            onAddNewBicycle={openBicycleModalFromWorkOrder}
+          />
         </DialogContent>
       </Dialog>
-      <Dialog open={activeModal === 'addClientFromWorkOrder'} onOpenChange={(isOpen) => !isOpen && setActiveModal('addWorkOrder')}>
+      
+      <Dialog open={isClientModalOpen} onOpenChange={(isOpen) => !isOpen && returnToWorkOrderModal()}>
         <DialogContent>
-          <ClientsTab isModal={true} closeModal={() => setActiveModal('addWorkOrder')} onClientCreated={(client) => { setWorkOrderFormState(prev => ({...prev, clientId: client.id})); setActiveModal('addWorkOrder'); }} clients={clients} loading={loading} onDataChange={fetchData} />
+          <ClientsTab 
+            isModal={true} 
+            onClientCreated={(client) => { 
+              setWorkOrderFormState(prev => ({...prev, clientId: client.id})); 
+              returnToWorkOrderModal();
+            }} 
+            clients={clients} 
+            loading={loading} 
+            onDataChange={fetchData} 
+          />
         </DialogContent>
       </Dialog>
-      <Dialog open={activeModal === 'addBicycleFromWorkOrder'} onOpenChange={(isOpen) => !isOpen && setActiveModal('addWorkOrder')}>
+      
+      <Dialog open={isBicycleModalOpen} onOpenChange={(isOpen) => !isOpen && returnToWorkOrderModal()}>
         <DialogContent>
-          <BicyclesTab isModal={true} closeModal={() => setActiveModal('addWorkOrder')} selectedClientId={workOrderFormState.clientId} onBicycleCreated={(bicycle) => { setWorkOrderFormState(prev => ({...prev, bicycleId: bicycle.id})); setActiveModal('addWorkOrder'); }} clients={clients} bicycles={bicycles} loading={loading} onDataChange={fetchData} />
+          <BicyclesTab 
+            isModal={true} 
+            selectedClientId={workOrderFormState.clientId}
+            onBicycleCreated={(bicycle) => { 
+              setWorkOrderFormState(prev => ({...prev, bicycleId: bicycle.id}));
+              returnToWorkOrderModal();
+            }}
+            clients={clients} 
+            bicycles={bicycles} 
+            loading={loading} 
+            onDataChange={fetchData} 
+          />
         </DialogContent>
       </Dialog>
+      {/* --- FIN DEL CAMBIO --- */}
     </div>
   );
 }
 
-const ClientsTab = ({ clients, loading, onDataChange, isModal = false, closeModal, onClientCreated }: { clients: Client[], loading: boolean, onDataChange: () => void, isModal?: boolean, closeModal?: () => void, onClientCreated?: (newClient: Client) => void }) => {
+const ClientsTab = ({ clients, loading, onDataChange, isModal = false, onClientCreated }: { clients: Client[], loading: boolean, onDataChange: () => void, isModal?: boolean, onClientCreated?: (newClient: Client) => void }) => {
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [newClient, setNewClient] = useState({ name: '', email: '', phone: '', address: '' });
@@ -156,13 +233,23 @@ const ClientsTab = ({ clients, loading, onDataChange, isModal = false, closeModa
   const handleAddClient = async () => {
     if (!newClient.name || !newClient.phone) { alert("El nombre y el teléfono son obligatorios."); return; }
     try {
-      const docRef = await addDoc(collection(db, "clients"), { ...newClient, createdAt: Timestamp.now(), updatedAt: Timestamp.now() });
-      const createdClient = { id: docRef.id, ...newClient };
+      const now = Timestamp.now();
+      const docRef = await addDoc(collection(db, "clients"), { ...newClient, createdAt: now, updatedAt: now });
+      
+      const createdClient: Client = { 
+        id: docRef.id, 
+        ...newClient,
+        createdAt: now.toDate(),
+        updatedAt: now.toDate()
+      };
+
       setNewClient({ name: '', email: '', phone: '', address: '' });
       await onDataChange();
-      if (onClientCreated) { onClientCreated(createdClient as Client); }
-      if (closeModal) closeModal(); 
-      else setAddDialogOpen(false);
+      if (onClientCreated) {
+         onClientCreated(createdClient);
+      } else {
+         setAddDialogOpen(false);
+      }
     } catch (error) { console.error("Error adding client: ", error); }
   };
 
@@ -197,26 +284,32 @@ const ClientsTab = ({ clients, loading, onDataChange, isModal = false, closeModa
 
   return (
     <div className="space-y-4">
-      {!isModal && (<><div className="flex justify-between items-center"><h3>Gestión de Clientes</h3><Button onClick={() => setAddDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Nuevo Cliente</Button></div>
-      <Card><CardContent className="pt-6">{loading ? <p>Cargando...</p> : (<Table><TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Email</TableHead><TableHead>Teléfono</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>{clients.map(client => (<TableRow key={client.id}><TableCell>{client.name}</TableCell><TableCell>{client.email}</TableCell><TableCell>{client.phone}</TableCell><TableCell className="text-center"><div className="flex items-center justify-center space-x-2"><Button variant="outline" size="sm" onClick={() => setEditingClient(client)}><Edit className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => handleDeleteClient(client.id)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>)}</CardContent></Card></>)}
+      {!isModal && (<>
+        <div className="flex justify-between items-center"><h3>Gestión de Clientes</h3><Button onClick={() => setAddDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Nuevo Cliente</Button></div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Agregar Nuevo Cliente</DialogTitle></DialogHeader>
+                <ClientForm clientData={newClient} setClientData={setNewClient} onSave={handleAddClient} />
+            </DialogContent>
+        </Dialog>
+        <Card><CardContent className="pt-6">{loading ? <p>Cargando...</p> : (<Table><TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Email</TableHead><TableHead>Teléfono</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>{clients.map(client => (<TableRow key={client.id}><TableCell>{client.name}</TableCell><TableCell>{client.email}</TableCell><TableCell>{client.phone}</TableCell><TableCell className="text-center"><div className="flex items-center justify-center space-x-2"><Button variant="outline" size="sm" onClick={() => setEditingClient(client)}><Edit className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => handleDeleteClient(client.id)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>)}</CardContent></Card></>)}
       
-      {isModal ? (
-          <><DialogHeader><DialogTitle>Agregar Nuevo Cliente</DialogTitle></DialogHeader><ClientForm clientData={newClient} setClientData={setNewClient} onSave={handleAddClient} /></>
-      ) : (
-          <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}><DialogContent><DialogHeader><DialogTitle>Agregar Nuevo Cliente</DialogTitle></DialogHeader><ClientForm clientData={newClient} setClientData={setNewClient} onSave={handleAddClient} /></DialogContent></Dialog>
-      )}
+      {isModal && (<>
+          <DialogHeader><DialogTitle>Agregar Nuevo Cliente</DialogTitle></DialogHeader>
+          <ClientForm clientData={newClient} setClientData={setNewClient} onSave={handleAddClient} />
+      </>)}
 
       <Dialog open={!!editingClient} onOpenChange={(isOpen) => !isOpen && setEditingClient(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
-          <ClientForm clientData={editingClient} setClientData={setEditingClient} onSave={handleUpdateClient} />
+          {editingClient && <ClientForm clientData={editingClient} setClientData={setEditingClient} onSave={handleUpdateClient} />}
         </DialogContent>
       </Dialog>
     </div>
   );
 };
 
-const BicyclesTab = ({ clients, bicycles, loading, onDataChange, isModal = false, closeModal, selectedClientId, onBicycleCreated }: { clients: Client[], bicycles: Bicycle[], loading: boolean, onDataChange: () => void, isModal?: boolean, closeModal?: () => void, selectedClientId?: string, onBicycleCreated?: (newBicycle: Bicycle) => void }) => {
+const BicyclesTab = ({ clients, bicycles, loading, onDataChange, isModal = false, selectedClientId, onBicycleCreated }: { clients: Client[], bicycles: Bicycle[], loading: boolean, onDataChange: () => void, isModal?: boolean, selectedClientId?: string, onBicycleCreated?: (newBicycle: Bicycle) => void }) => {
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [editingBicycle, setEditingBicycle] = useState<Bicycle | null>(null);
   const [newBicycle, setNewBicycle] = useState({ clientId: selectedClientId || '', brand: '', model: '', type: 'mountain' as Bicycle['type'], color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
@@ -226,13 +319,21 @@ const BicyclesTab = ({ clients, bicycles, loading, onDataChange, isModal = false
   const handleAddBicycle = async () => {
     if (!newBicycle.clientId || !newBicycle.brand) { alert("Cliente y marca son obligatorios."); return; }
     try {
-      const docRef = await addDoc(collection(db, "bicycles"), { ...newBicycle, createdAt: Timestamp.now(), updatedAt: Timestamp.now() });
-      const createdBicycle = { id: docRef.id, ...newBicycle };
+      const now = Timestamp.now();
+      const docRef = await addDoc(collection(db, "bicycles"), { ...newBicycle, createdAt: now, updatedAt: now });
+      const createdBicycle: Bicycle = { 
+        id: docRef.id, 
+        ...newBicycle,
+        createdAt: now.toDate(),
+        updatedAt: now.toDate()
+      };
       setNewBicycle({ clientId: selectedClientId || '', brand: '', model: '', type: 'mountain', color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
       await onDataChange();
-      if (onBicycleCreated) onBicycleCreated(createdBicycle as Bicycle);
-      if (closeModal) closeModal();
-      else setAddDialogOpen(false);
+      if (onBicycleCreated) {
+        onBicycleCreated(createdBicycle);
+      } else {
+        setAddDialogOpen(false);
+      }
     } catch (error) { console.error("Error adding bicycle:", error); }
   };
   
@@ -256,9 +357,10 @@ const BicyclesTab = ({ clients, bicycles, loading, onDataChange, isModal = false
   };
 
   const getClientName = (clientId: string) => clients.find(c => c.id === clientId)?.name || 'N/A';
-  const bicycleForm = (bicycle: any, setBicycle: (data: any) => void) => (
+  
+  const BicycleForm = ({ bicycle, setBicycle, onSave }: { bicycle: any, setBicycle: any, onSave: any }) => (
     <div className="space-y-4 pt-4">
-      <div><Label>Cliente</Label><Select value={bicycle.clientId} onValueChange={(value) => setBicycle({...bicycle, clientId: value})}><SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger><SelectContent>{clients.map(client => (<SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>))}</SelectContent></Select></div>
+      <div><Label>Cliente</Label><Select value={bicycle.clientId} onValueChange={(value) => setBicycle({...bicycle, clientId: value})} disabled={!!selectedClientId}><SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger><SelectContent>{clients.map(client => (<SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>))}</SelectContent></Select></div>
       <div className="grid grid-cols-2 gap-4">
         <div><Label>Marca</Label><Input value={bicycle.brand} onChange={(e) => setBicycle({...bicycle, brand: e.target.value})}/></div>
         <div><Label>Modelo</Label><Input value={bicycle.model} onChange={(e) => setBicycle({...bicycle, model: e.target.value})}/></div>
@@ -272,41 +374,50 @@ const BicyclesTab = ({ clients, bicycles, loading, onDataChange, isModal = false
         <div><Label>Año</Label><Input type="number" value={bicycle.year} onChange={(e) => setBicycle({...bicycle, year: parseInt(e.target.value, 10)})}/></div>
       </div>
       <div><Label>Notas</Label><Textarea value={bicycle.notes} onChange={(e) => setBicycle({...bicycle, notes: e.target.value})} /></div>
+      <Button onClick={onSave} className="w-full mt-4">Guardar</Button>
     </div>
   );
 
   return (
     <div className="space-y-4">
-      {!isModal && (<><div className="flex justify-between items-center"><h3>Gestión de Bicicletas</h3><Button onClick={() => setAddDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Nueva Bicicleta</Button></div>
-      <Card><CardContent className="pt-6">{loading ? <p>Cargando...</p> : (<Table><TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Marca/Modelo</TableHead><TableHead>Tipo</TableHead><TableHead>Año</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>{bicycles.map(bicycle => (<TableRow key={bicycle.id}><TableCell>{getClientName(bicycle.clientId)}</TableCell><TableCell>{bicycle.brand} {bicycle.model}</TableCell><TableCell><Badge variant="outline">{bicycle.type}</Badge></TableCell><TableCell>{bicycle.year}</TableCell><TableCell className="text-center"><div className="flex items-center justify-center space-x-2"><Button variant="outline" size="sm" onClick={() => setEditingBicycle(bicycle)}><Edit className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => handleDeleteBicycle(bicycle.id)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>)}</CardContent></Card></>)}
-      {isModal ? (
-           <><DialogHeader><DialogTitle>Agregar Bicicleta</DialogTitle></DialogHeader>{bicycleForm(newBicycle, setNewBicycle)}<Button onClick={handleAddBicycle} className="w-full mt-4">Guardar</Button></>
-      ) : (
-          <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}><DialogContent><DialogHeader><DialogTitle>Agregar Bicicleta</DialogTitle></DialogHeader>{bicycleForm(newBicycle, setNewBicycle)}<Button onClick={handleAddBicycle} className="w-full mt-4">Guardar</Button></DialogContent></Dialog>
-      )}
-      <Dialog open={!!editingBicycle} onOpenChange={(isOpen) => !isOpen && setEditingBicycle(null)}><DialogContent><DialogHeader><DialogTitle>Editar Bicicleta</DialogTitle></DialogHeader>{editingBicycle && bicycleForm(editingBicycle, setEditingBicycle)}<Button onClick={handleUpdateBicycle} className="w-full mt-4">Guardar Cambios</Button></DialogContent></Dialog>
-    </div>
-  );
-};
+      {!isModal && (<>
+        <div className="flex justify-between items-center"><h3>Gestión de Bicicletas</h3><Button onClick={() => setAddDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Nueva Bicicleta</Button></div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Agregar Bicicleta</DialogTitle></DialogHeader>
+                <BicycleForm bicycle={newBicycle} setBicycle={setNewBicycle} onSave={handleAddBicycle}/>
+            </DialogContent>
+        </Dialog>
+        <Card><CardContent className="pt-6">{loading ? <p>Cargando...</p> : (<Table><TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Marca/Modelo</TableHead><TableHead>Tipo</TableHead><TableHead>Año</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>{bicycles.map(bicycle => (<TableRow key={bicycle.id}><TableCell>{getClientName(bicycle.clientId)}</TableCell><TableCell>{bicycle.brand} {bicycle.model}</TableCell><TableCell><Badge variant="outline">{bicycle.type}</Badge></TableCell><TableCell>{bicycle.year}</TableCell><TableCell className="text-center"><div className="flex items-center justify-center space-x-2"><Button variant="outline" size="sm" onClick={() => setEditingBicycle(bicycle)}><Edit className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => handleDeleteBicycle(bicycle.id)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>)}</CardContent></Card></>)}
+      
+      {isModal && (<>
+           <DialogHeader><DialogTitle>Agregar Bicicleta</DialogTitle></DialogHeader>
+           <BicycleForm bicycle={newBicycle} setBicycle={setNewBicycle} onSave={handleAddBicycle}/>
+      </>)}
 
-const WorkOrdersTab = ({ clients, bicycles, workOrders, loading, onDataChange, setActiveModal }: { clients: Client[], bicycles: Bicycle[], workOrders: WorkOrder[], loading: boolean, onDataChange: () => void, setActiveModal: (modal: ModalType | null) => void; }) => {
-  const [isAddDialogOpen, setAddDialogOpen] = useState(false);
-  const [newWorkOrder, setNewWorkOrder] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3>Gestión de Fichas de Trabajo</h3><Button onClick={() => setAddDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button></div>
-      <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <WorkOrderForm clients={clients} bicycles={bicycles} onDataChange={onDataChange} closeModal={() => setAddDialogOpen(false)} setActiveModal={setActiveModal} formState={newWorkOrder} setFormState={setNewWorkOrder}/>
+      <Dialog open={!!editingBicycle} onOpenChange={(isOpen) => !isOpen && setEditingBicycle(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Bicicleta</DialogTitle></DialogHeader>
+          {editingBicycle && <BicycleForm bicycle={editingBicycle} setBicycle={setEditingBicycle} onSave={handleUpdateBicycle}/>}
         </DialogContent>
       </Dialog>
-      <Card><CardContent className="pt-6">{loading ? <p>Cargando fichas...</p> : (<Table><TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Bicicleta</TableHead><TableHead>Entrega Est.</TableHead><TableHead>Estado</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>{workOrders.map(workOrder => (<TableRow key={workOrder.id}><TableCell>{workOrder.client?.name || 'N/A'}</TableCell><TableCell>{workOrder.bicycle ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}`: 'N/A'}</TableCell><TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell><TableCell><Badge variant={workOrder.status === 'open' ? 'default' : 'secondary'}>{workOrder.status}</Badge></TableCell><TableCell className="text-center"><Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button></TableCell></TableRow>))}</TableBody></Table>)}</CardContent></Card>
     </div>
   );
 };
 
-const WorkOrderForm = ({ clients, bicycles, onDataChange, closeModal, setActiveModal, formState, setFormState }: { clients: Client[], bicycles: Bicycle[], onDataChange: () => void, closeModal: () => void, setActiveModal: (modal: ModalType | null) => void, formState: any, setFormState: any }) => {
+const WorkOrdersTab = ({ workOrders, loading, onDataChange, openModal }: { workOrders: WorkOrder[], loading: boolean, onDataChange: () => void, openModal: () => void; }) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3>Gestión de Fichas de Trabajo</h3>
+        <Button onClick={openModal}><Plus className="h-4 w-4 mr-2" />Nueva Ficha</Button>
+      </div>
+      <Card><CardContent className="pt-6">{loading ? <p>Cargando fichas...</p> : (<Table><TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Bicicleta</TableHead><TableHead>Entrega Est.</TableHead><TableHead>Estado</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>{workOrders.map(workOrder => (<TableRow key={workOrder.id}><TableCell>{workOrder.client?.name || 'N/A'}</TableCell><TableCell>{workOrder.bicycle ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}`: 'N/A'}</TableCell><TableCell>{workOrder.estimatedDeliveryDate ? workOrder.estimatedDeliveryDate.toLocaleDateString() : 'N/A'}</TableCell><TableCell><Badge variant={workOrder.status === 'open' ? 'default' : 'secondary'}>{workOrder.status}</Badge></TableCell><TableCell className="text-center"><Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button></TableCell></TableRow>))}</TableBody></Table>)}</CardContent></Card>
+    </div>
+  );
+};
+
+const WorkOrderForm = ({ clients, bicycles, onDataChange, closeModal, formState, setFormState, onAddNewClient, onAddNewBicycle }: { clients: Client[], bicycles: Bicycle[], onDataChange: () => void, closeModal: () => void, formState: any, setFormState: any, onAddNewClient: () => void, onAddNewBicycle: () => void }) => {
   const [availableBicycles, setAvailableBicycles] = useState<Bicycle[]>([]);
 
   useEffect(() => {
@@ -318,7 +429,8 @@ const WorkOrderForm = ({ clients, bicycles, onDataChange, closeModal, setActiveM
     if (!formState.clientId || !formState.bicycleId) { alert("Cliente y bicicleta son obligatorios."); return; }
     try {
       await addDoc(collection(db, "workorders"), {
-        clientId: formState.clientId, bicycleId: formState.bicycleId, description: formState.description, status: 'open', services: [], parts: [], totalAmount: 0,
+        ...formState,
+        status: 'open', services: [], parts: [], totalAmount: 0,
         estimatedDeliveryDate: formState.estimatedDeliveryDate ? Timestamp.fromDate(new Date(formState.estimatedDeliveryDate)) : null,
         createdAt: Timestamp.now(), updatedAt: Timestamp.now()
       });
@@ -332,8 +444,6 @@ const WorkOrderForm = ({ clients, bicycles, onDataChange, closeModal, setActiveM
     <>
       <DialogHeader><DialogTitle>Crear Nueva Ficha de Trabajo</DialogTitle></DialogHeader>
       <div className="space-y-4 pt-4">
-        
-        {/* --- CAMBIO AQUÍ --- */}
         <div className="flex items-end gap-2">
           <div className="flex-grow">
             <Label>Cliente</Label>
@@ -341,34 +451,25 @@ const WorkOrderForm = ({ clients, bicycles, onDataChange, closeModal, setActiveM
               clients={clients} 
               selectedClientId={formState.clientId} 
               onSelectClient={(clientId) => setFormState({ ...formState, clientId, bicycleId: '' })} 
-              onAddNewClient={() => setActiveModal('addClientFromWorkOrder')}
+              onAddNewClient={onAddNewClient}
             />
           </div>
-          <Button variant="outline" size="icon" onClick={() => setActiveModal('addClientFromWorkOrder')}>
+          <Button variant="outline" size="icon" onClick={onAddNewClient}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        {/* --- FIN DEL CAMBIO --- */}
-
         <div className="flex items-end gap-2">
           <div className="flex-grow">
             <Label htmlFor="bicycleId">Bicicleta</Label>
             <Select value={formState.bicycleId} onValueChange={(value) => setFormState({ ...formState, bicycleId: value })} disabled={!formState.clientId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar bicicleta" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableBicycles.map(bicycle => (
-                  <SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model}</SelectItem>
-                ))}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger>
+              <SelectContent>{availableBicycles.map(bicycle => (<SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model}</SelectItem>))}</SelectContent>
             </Select>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setActiveModal('addBicycleFromWorkOrder')} disabled={!formState.clientId}>
+          <Button variant="outline" size="icon" onClick={onAddNewBicycle} disabled={!formState.clientId}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        
         <div><Label>Descripción</Label><Textarea value={formState.description} onChange={(e) => setFormState({...formState, description: e.target.value})} /></div>
         <div><Label>Fecha Entrega Estimada</Label><Input type="date" value={formState.estimatedDeliveryDate} onChange={(e) => setFormState({...formState, estimatedDeliveryDate: e.target.value})} /></div>
         <Button onClick={handleAddWorkOrder} className="w-full">Crear Ficha</Button>
