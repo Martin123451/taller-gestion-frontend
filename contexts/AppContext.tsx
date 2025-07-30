@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { AppState, User, Client, Bicycle, WorkOrder, ServiceItem, PartItem, WorkOrderStatus } from '../lib/types';
 import { mockUsers, mockClients, mockBicycles, mockWorkOrders, mockServices, mockParts } from '../lib/mockData';
+import { getServices, createService, updateService, deleteService } from '../services/services';
+import { getParts, createPart, updatePart, deletePart } from '../services/parts';
 
 type AppAction = 
   | { type: 'SET_USER'; payload: User | null }
@@ -15,9 +17,13 @@ type AppAction =
   | { type: 'COMPLETE_WORK_ORDER'; payload: string }
   | { type: 'DELIVER_WORK_ORDER'; payload: string }
   | { type: 'UPDATE_WORK_TIME'; payload: { workOrderId: string; minutes: number } }
+  | { type: 'SET_SERVICES'; payload: ServiceItem[] }
+  | { type: 'SET_PARTS'; payload: PartItem[] }
   | { type: 'ADD_SERVICE'; payload: ServiceItem }
   | { type: 'UPDATE_SERVICE'; payload: ServiceItem }
   | { type: 'ADD_PART'; payload: PartItem }
+  | { type: 'DELETE_SERVICE'; payload: string }
+  | { type: 'DELETE_PART'; payload: string }
   | { type: 'UPDATE_PART'; payload: PartItem };
 
 const initialState: AppState = {
@@ -26,8 +32,8 @@ const initialState: AppState = {
   clients: mockClients,
   bicycles: mockBicycles,
   workOrders: mockWorkOrders,
-  services: mockServices,
-  parts: mockParts,
+  services: [],
+  parts: [],
   isLoading: false
 };
 
@@ -129,10 +135,17 @@ function appReducer(state: AppState, action: AppAction): AppState {
         )
       };
 
+    case 'SET_SERVICES':
+      return { ...state, services: action.payload };
+
+    case 'SET_PARTS':
+      return { ...state, parts: action.payload };
+
     case 'ADD_SERVICE':
       return { ...state, services: [...state.services, action.payload] };
 
     case 'UPDATE_SERVICE':
+      updateService(action.payload.id, action.payload); // Llama a Firebase
       return {
         ...state,
         services: state.services.map(s => 
@@ -144,12 +157,31 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, parts: [...state.parts, action.payload] };
 
     case 'UPDATE_PART':
+      updatePart(action.payload.id, action.payload); // Llama a Firebase
       return {
         ...state,
         parts: state.parts.map(p => 
           p.id === action.payload.id ? action.payload : p
         )
       };
+
+    case 'DELETE_SERVICE':
+    // Llama a la función de Firebase para borrar en la base de datos
+    deleteService(action.payload); 
+    // Actualiza la lista en el frontend para que el cambio se vea al instante
+    return {
+      ...state,
+      services: state.services.filter(s => s.id !== action.payload)
+    };
+
+  case 'DELETE_PART':
+    // Llama a la función de Firebase para borrar en la base de datos
+    deletePart(action.payload); 
+    // Actualiza la lista en el frontend
+    return {
+      ...state,
+      parts: state.parts.filter(p => p.id !== action.payload)
+    };
     
     default:
       return state;
@@ -163,6 +195,20 @@ const AppContext = createContext<{
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
+
+  useEffect(() => {
+      const fetchInventory = async () => {
+        // Solo se ejecuta la carga si las listas en el estado están vacías.
+        // Esto previene la duplicación de datos en el modo de desarrollo.
+        if (state.services.length === 0 && state.parts.length === 0) {
+          const servicesFromFirebase = await getServices();
+          const partsFromFirebase = await getParts();
+          dispatch({ type: 'SET_SERVICES', payload: servicesFromFirebase });
+          dispatch({ type: 'SET_PARTS', payload: partsFromFirebase });
+        }
+      };
+      fetchInventory();
+    }, []);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

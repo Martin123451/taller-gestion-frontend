@@ -9,6 +9,10 @@ import { Plus } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { ServiceItem, PartItem } from '../lib/types';
 import EditItemDialog from './EditItemDialog'; // <-- 1. IMPORTAMOS EL NUEVO COMPONENTE
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
+import { createService } from '../services/services';
+import { createPart } from '../services/parts';
 
 // El formulario de creación no ha cambiado
 const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType: 'service' | 'part' }) => {
@@ -48,22 +52,20 @@ const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType:
 
 export default function InventoryManagement() {
   const { state, dispatch } = useApp();
+  const [isNewServiceDialogOpen, setIsNewServiceDialogOpen] = useState(false);
+  const [isNewPartDialogOpen, setIsNewPartDialogOpen] = useState(false);
 
-  const handleSaveService = (serviceData: ServiceItem) => {
-    if (serviceData.id) {
-      dispatch({ type: 'UPDATE_SERVICE', payload: serviceData });
-    } else {
-      dispatch({ type: 'ADD_SERVICE', payload: { ...serviceData, id: `service-${Date.now()}` } });
-    }
-  };
+const handleSaveService = async (serviceData: ServiceItem) => {
+    const newServiceWithId = await createService({ ...serviceData, id: `temp-${Date.now()}` });
+    dispatch({ type: 'ADD_SERVICE', payload: newServiceWithId });
+    setIsNewServiceDialogOpen(false);
+};
 
-  const handleSavePart = (partData: PartItem) => {
-    if (partData.id) {
-      dispatch({ type: 'UPDATE_PART', payload: partData });
-    } else {
-      dispatch({ type: 'ADD_PART', payload: { ...partData, id: `part-${Date.now()}` } });
-    }
-  };
+const handleSavePart = async (partData: PartItem) => {
+    const newPartWithId = await createPart({ ...partData, id: `temp-${Date.now()}` });
+    dispatch({ type: 'ADD_PART', payload: newPartWithId });
+    setIsNewPartDialogOpen(false);
+};
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -74,7 +76,7 @@ export default function InventoryManagement() {
             <CardTitle>Servicios</CardTitle>
             <CardDescription>Servicios ofrecidos en el taller</CardDescription>
           </div>
-          <Dialog>
+          <Dialog open={isNewServiceDialogOpen} onOpenChange={setIsNewServiceDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="h-4 w-4 mr-2" />Nuevo Servicio</Button>
             </DialogTrigger>
@@ -100,8 +102,30 @@ export default function InventoryManagement() {
                 <TableRow key={service.id}>
                   <TableCell>{service.name}</TableCell>
                   <TableCell className="text-right">${service.price.toLocaleString()}</TableCell>
-                  <TableCell className="text-center"> {/* <-- 3. AÑADIMOS LA CELDA CON EL BOTÓN */}
+                  <TableCell className="text-center space-x-2">
                     <EditItemDialog item={service} onSave={handleSaveService} itemType="service" />
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Esto eliminará permanentemente el servicio.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => dispatch({ type: 'DELETE_SERVICE', payload: service.id })}>
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
@@ -117,7 +141,7 @@ export default function InventoryManagement() {
             <CardTitle>Inventario de Piezas</CardTitle>
             <CardDescription>Piezas y repuestos en stock</CardDescription>
           </div>
-           <Dialog>
+           <Dialog open={isNewPartDialogOpen} onOpenChange={setIsNewPartDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="h-4 w-4 mr-2" />Nueva Pieza</Button>
             </DialogTrigger>
@@ -145,8 +169,30 @@ export default function InventoryManagement() {
                   <TableCell>{part.name}</TableCell>
                   <TableCell>{part.stock}</TableCell>
                   <TableCell className="text-right">${part.price.toLocaleString()}</TableCell>
-                  <TableCell className="text-center"> {/* <-- 3. AÑADIMOS LA CELDA CON EL BOTÓN */}
+                  <TableCell className="text-center space-x-2">
                     <EditItemDialog item={part} onSave={handleSavePart} itemType="part" />
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Esto eliminará permanentemente la pieza.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => dispatch({ type: 'DELETE_PART', payload: part.id })}>
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
