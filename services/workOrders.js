@@ -1,7 +1,7 @@
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from '../firebase/config';
 
-const workOrdersCollection = collection(db, "workOrders");
+const workOrdersCollection = collection(db, "workorders");
 
 export const getWorkOrders = async (clientsData, bicyclesData) => {
     const querySnapshot = await getDocs(workOrdersCollection);
@@ -34,7 +34,7 @@ export const createWorkOrder = async (workOrderData, client, bicycle) => {
 };
 
 export const updateWorkOrder = async (workOrderId, workOrderData) => {
-    const workOrderDoc = doc(db, "workOrders", workOrderId);
+    const workOrderDoc = doc(db, "workorders", workOrderId);
     const dataToUpdate = { ...workOrderData, updatedAt: new Date() };
     // Evitamos guardar los objetos anidados de cliente y bicicleta en la BD
     delete dataToUpdate.client;
@@ -43,6 +43,6 @@ export const updateWorkOrder = async (workOrderId, workOrderData) => {
 };
 
 export const deleteWorkOrder = async (workOrderId) => {
-    const workOrderDoc = doc(db, "workOrders", workOrderId);
+    const workOrderDoc = doc(db, "workorders", workOrderId);
     await deleteDoc(workOrderDoc);
 };

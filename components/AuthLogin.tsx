@@ -10,7 +10,15 @@ export default function AuthLogin() {
   const [view, setView] = useState<'role' | 'mechanic'>('role');
 
   const handleAdminLogin = () => {
-    login('admin@marchantbike.com', 'password');
+    // Creamos un usuario admin genérico para el login, sin consultar la base de datos.
+    const adminUser: User = {
+      id: 'admin-virtual-01',
+      name: 'Administrador',
+      email: 'admin@taller.com',
+      role: 'admin',
+      createdAt: new Date()
+    };
+    login(adminUser);
   };
 
   if (view === 'mechanic') {

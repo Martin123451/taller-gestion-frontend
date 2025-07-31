@@ -27,7 +27,7 @@ export default function MechanicSelection({ onLogin, onBack }: MechanicSelection
         {mechanics.map((mechanic) => (
           <Button 
             key={mechanic.id}
-            onClick={() => onLogin(mechanic.email, 'password')} // Usamos una contraseña genérica para el mock
+            onClick={() => onLogin(mechanic)} // Usamos una contraseña genérica para el mock
             className="w-full h-14 bg-marchant-red hover:bg-marchant-red-dark text-white text-lg shadow-lg hover:shadow-xl transition-all duration-200"
             size="lg"
           >
