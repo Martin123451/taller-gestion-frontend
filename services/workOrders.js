@@ -33,6 +33,23 @@ export const createWorkOrder = async (workOrderData, client, bicycle) => {
     return { id: docRef.id, ...workOrderData, client, bicycle };
 };
 
+export const startWorkOnOrder = async (workOrderId, mechanicId) => {
+    const workOrderDoc = doc(db, "workorders", workOrderId);
+    await updateDoc(workOrderDoc, {
+        status: 'in_progress',
+        startedAt: new Date(), // Guarda la fecha y hora actual
+        mechanicId: mechanicId // Asigna el mecánico a la ficha
+    });
+};
+
+export const completeWorkOnOrder = async (workOrderId) => {
+    const workOrderDoc = doc(db, "workorders", workOrderId);
+    await updateDoc(workOrderDoc, {
+        status: 'ready_for_delivery',
+        completedAt: new Date() // Guarda la fecha y hora actual
+    });
+};
+
 export const updateWorkOrder = async (workOrderId, workOrderData) => {
     const workOrderDoc = doc(db, "workorders", workOrderId);
     const dataToUpdate = { ...workOrderData, updatedAt: new Date() };
