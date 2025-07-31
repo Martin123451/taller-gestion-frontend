@@ -4,15 +4,16 @@ import { Button } from './ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Client } from '../lib/types';
+import { useApp } from '../contexts/AppContext';
 
 interface ClientSearchComboboxProps {
-  clients: Client[];
   selectedClientId: string | null;
   onSelectClient: (clientId: string) => void;
   onAddNewClient: () => void;
 }
 
-export default function ClientSearchCombobox({ clients, selectedClientId, onSelectClient, onAddNewClient }: ClientSearchComboboxProps) {
+export default function ClientSearchCombobox({ selectedClientId, onSelectClient, onAddNewClient }: ClientSearchComboboxProps) {
+  const { state } = useApp();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -20,15 +21,15 @@ export default function ClientSearchCombobox({ clients, selectedClientId, onSele
   const isTransitioningRef = useRef(false);
 
   const selectedClientName = useMemo(() => {
-    return clients.find(client => client.id === selectedClientId)?.name || "Buscar y seleccionar cliente...";
-  }, [selectedClientId, clients]);
+    return state.clients.find(client => client.id === selectedClientId)?.name || "Buscar y seleccionar cliente...";
+  }, [selectedClientId, state.clients]);
 
   const filteredClients = useMemo(() => {
-    if (!searchQuery) return clients;
-    return clients.filter(client => 
+    if (!searchQuery) return state.clients;
+    return state.clients.filter(client => 
       client.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery, clients]);
+  }, [searchQuery, state.clients]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
