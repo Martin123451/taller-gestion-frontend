@@ -5,7 +5,7 @@ import { getServices, createService, updateService, deleteService } from '../ser
 import { getParts, createPart, updatePart, deletePart } from '../services/parts';
 import { getClients, createClient, updateClient, deleteClient } from '../services/clients';
 import { getBicycles, createBicycle, updateBicycle, deleteBicycle } from '../services/bicycles';
-import { getWorkOrders, createWorkOrder, updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
+import { getWorkOrders, createWorkOrder, startWorkOnOrder, completeWorkOnOrder,updateWorkOrder } from '../services/workOrders';
 import { getUsers } from '../services/users';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '../firebase/config';
@@ -38,6 +38,8 @@ type AppAction =
   | { type: 'SET_CLIENTS'; payload: Client[] }
   | { type: 'SET_BICYCLES'; payload: Bicycle[] }
   | { type: 'SET_WORK_ORDERS'; payload: WorkOrder[] }
+  | { type: 'START_WORK_ORDER'; payload: { workOrderId: string; mechanicId: string } }
+  | { type: 'COMPLETE_WORK_ORDER'; payload: string }
   | { type: 'UPDATE_PART'; payload: PartItem };
 
 const initialState: AppState = {
@@ -114,37 +116,32 @@ function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         workOrders: state.workOrders.map(wo => wo.id === action.payload.id ? action.payload : wo),
       };
+      
     
     case 'START_WORK_ORDER':
+      // Llama a la función de Firebase en segundo plano
+      startWorkOnOrder(action.payload.workOrderId, action.payload.mechanicId);
+      // Actualiza el estado local para una respuesta visual instantánea
       return {
         ...state,
         workOrders: state.workOrders.map(wo => 
           wo.id === action.payload.workOrderId 
-            ? { 
-                ...wo, 
-                status: 'in_progress' as WorkOrderStatus,
-                mechanicId: action.payload.mechanicId,
-                mechanic: state.currentUser || undefined,
-                startedAt: new Date(),
-                updatedAt: new Date()
-              }
+            ? { ...wo, status: 'in_progress', startedAt: new Date(), mechanicId: action.payload.mechanicId } 
             : wo
-        )
+        ),
       };
     
     case 'COMPLETE_WORK_ORDER':
+      // Llama a la función de Firebase en segundo plano
+      completeWorkOnOrder(action.payload);
+      // Actualiza el estado local
       return {
         ...state,
         workOrders: state.workOrders.map(wo => 
           wo.id === action.payload 
-            ? { 
-                ...wo, 
-                status: 'ready_for_delivery' as WorkOrderStatus,
-                completedAt: new Date(),
-                updatedAt: new Date()
-              }
+            ? { ...wo, status: 'ready_for_delivery', completedAt: new Date() } 
             : wo
-        )
+        ),
       };
     
     case 'DELIVER_WORK_ORDER':

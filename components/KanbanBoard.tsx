@@ -64,12 +64,15 @@ const WorkOrderCard = memo(({ workOrder, timerValue, isTimerRunning, isSelected,
             <p className="text-xs text-muted-foreground line-clamp-2">
               {workOrder.description}
             </p>
-            <div className="flex justify-between items-center mt-2">
+            <div className="flex justify-between items-center mt-2 pt-2 border-t">
               <span className="text-xs text-muted-foreground">
                 #{workOrder.id.slice(-6)}
               </span>
+              <p className="text-sm font-semibold text-marchant-green">
+                  ${workOrder.totalAmount.toLocaleString()}
+              </p>
               {workOrder.estimatedDeliveryDate && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground text-right mt-1">
                   Entrega: {new Date(workOrder.estimatedDeliveryDate).toLocaleDateString()}
                 </p>
               )}
@@ -91,7 +94,7 @@ const WorkOrderCard = memo(({ workOrder, timerValue, isTimerRunning, isSelected,
         </Card>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        {isSelected && <WorkOrderDetail workOrder={workOrder} />}
+        {isSelected && <WorkOrderDetail workOrder={workOrder} onClose={() => onSelect(null)} />}
       </DialogContent>
     </Dialog>
   );
@@ -99,8 +102,9 @@ const WorkOrderCard = memo(({ workOrder, timerValue, isTimerRunning, isSelected,
 
 
 // Este componente no ha cambiado, lo dejamos aquí para que todo funcione
-const WorkOrderDetail = ({ workOrder }: { workOrder: WorkOrder }) => {
+const WorkOrderDetail = ({ workOrder, onClose }: { workOrder: WorkOrder, onClose: () => void }) => {
     const { state, dispatch } = useApp();
+    const { currentUser } = state;
     const [services, setServices] = useState<WorkOrderService[]>(workOrder.services);
     const [parts, setParts] = useState<WorkOrderPart[]>(workOrder.parts);
     const [mechanicNotes, setMechanicNotes] = useState(workOrder.mechanicNotes || '');
@@ -169,6 +173,7 @@ const WorkOrderDetail = ({ workOrder }: { workOrder: WorkOrder }) => {
         updatedAt: new Date()
       };
       dispatch({ type: 'UPDATE_WORK_ORDER', payload: updatedWorkOrder });
+      onClose();
     };
 
     return (
@@ -267,14 +272,14 @@ const WorkOrderDetail = ({ workOrder }: { workOrder: WorkOrder }) => {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={saveChanges} className="border-marchant-green text-marchant-green hover:bg-marchant-green-light">Guardar Cambios</Button>
-              {workOrder.status === 'open' && (
-                <Button onClick={() => startWork(workOrder.id)} className="bg-marchant-green hover:bg-marchant-green-dark">
+              {workOrder.status === 'open' && currentUser && (
+                <Button onClick={() => dispatch({ type: 'START_WORK_ORDER', payload: { workOrderId: workOrder.id, mechanicId: currentUser.id } })} className="bg-marchant-green hover:bg-marchant-green-dark">
                   <Play className="h-4 w-4 mr-2" />
                   Iniciar Trabajo
                 </Button>
               )}
               {workOrder.status === 'in_progress' && (
-                <Button onClick={() => completeWork(workOrder.id)} className="bg-marchant-red hover:bg-marchant-red-dark">
+                <Button onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} className="bg-marchant-red hover:bg-marchant-red-dark">
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Completar
                 </Button>
