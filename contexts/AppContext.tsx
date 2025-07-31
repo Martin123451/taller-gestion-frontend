@@ -6,12 +6,14 @@ import { getParts, createPart, updatePart, deletePart } from '../services/parts'
 import { getClients, createClient, updateClient, deleteClient } from '../services/clients';
 import { getBicycles, createBicycle, updateBicycle, deleteBicycle } from '../services/bicycles';
 import { getWorkOrders, createWorkOrder, updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
+import { getUsers } from '../services/users';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '../firebase/config';
 
 
 type AppAction = 
-  | { type: 'SET_USER'; payload: User | null }
+  | { type: 'SET_USER'; payload: User[] }
+  | { type: 'SET_CURRENT_USER'; payload: User | null }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'ADD_CLIENT'; payload: Client }
   | { type: 'UPDATE_CLIENT'; payload: Client }
@@ -52,6 +54,9 @@ const initialState: AppState = {
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_USER':
+      return { ...state, users: action.payload };
+
+    case 'SET_CURRENT_USER': // <-- VERIFICAR/AÑADIR
       return { ...state, currentUser: action.payload };
 
     case 'SET_CLIENTS':
@@ -259,6 +264,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           console.log("Clientes cargados:", clientsData.length);
         }
 
+        // --- AÑADIMOS LA CARGA DE USUARIOS ---
+        const usersData = await getUsers();
+        dispatch({ type: 'SET_USER', payload: usersData });
+
         // --- Carga de Bicicletas ---
         const bicyclesSnapshot = await getDocs(collection(db, "bicycles"));
         const bicyclesData = bicyclesSnapshot.docs.map(doc => {
@@ -335,18 +344,13 @@ export function useApp() {
 export function useAuth() {
   const { state, dispatch } = useApp();
   
-  const login = (email: string, password: string) => {
-    // Simulate login
-    const user = mockUsers.find(u => u.email === email);
-    if (user) {
-      dispatch({ type: 'SET_USER', payload: user });
-      return true;
-    }
-    return false;
+  const login = (userToLogin: User) => {
+    // Simplemente establece el usuario que nos pasaron como el usuario actual
+    dispatch({ type: 'SET_CURRENT_USER', payload: userToLogin });
   };
 
   const logout = () => {
-    dispatch({ type: 'SET_USER', payload: null });
+    dispatch({ type: 'SET_CURRENT_USER', payload: null });
   };
 
   return {
