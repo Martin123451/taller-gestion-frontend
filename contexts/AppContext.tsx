@@ -3,20 +3,29 @@ import { AppState, User, Client, Bicycle, WorkOrder, ServiceItem, PartItem, Work
 import { mockUsers, mockClients, mockBicycles, mockWorkOrders, mockServices, mockParts } from '../lib/mockData';
 import { getServices, createService, updateService, deleteService } from '../services/services';
 import { getParts, createPart, updatePart, deletePart } from '../services/parts';
+import { getClients, createClient, updateClient, deleteClient } from '../services/clients';
+import { getBicycles, createBicycle, updateBicycle, deleteBicycle } from '../services/bicycles';
+import { getWorkOrders, createWorkOrder, updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
+import { collection, getDocs } from "firebase/firestore";
+import { db } from '../firebase/config';
+
 
 type AppAction = 
   | { type: 'SET_USER'; payload: User | null }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'ADD_CLIENT'; payload: Client }
   | { type: 'UPDATE_CLIENT'; payload: Client }
+  | { type: 'DELETE_CLIENT'; payload: string } 
   | { type: 'ADD_BICYCLE'; payload: Bicycle }
   | { type: 'UPDATE_BICYCLE'; payload: Bicycle }
+  | { type: 'DELETE_BICYCLE'; payload: string }
   | { type: 'ADD_WORK_ORDER'; payload: WorkOrder }
   | { type: 'UPDATE_WORK_ORDER'; payload: WorkOrder }
   | { type: 'START_WORK_ORDER'; payload: { workOrderId: string; mechanicId: string } }
   | { type: 'COMPLETE_WORK_ORDER'; payload: string }
   | { type: 'DELIVER_WORK_ORDER'; payload: string }
   | { type: 'UPDATE_WORK_TIME'; payload: { workOrderId: string; minutes: number } }
+  | { type: 'DELETE_WORK_ORDER'; payload: string }
   | { type: 'SET_SERVICES'; payload: ServiceItem[] }
   | { type: 'SET_PARTS'; payload: PartItem[] }
   | { type: 'ADD_SERVICE'; payload: ServiceItem }
@@ -24,14 +33,17 @@ type AppAction =
   | { type: 'ADD_PART'; payload: PartItem }
   | { type: 'DELETE_SERVICE'; payload: string }
   | { type: 'DELETE_PART'; payload: string }
+  | { type: 'SET_CLIENTS'; payload: Client[] }
+  | { type: 'SET_BICYCLES'; payload: Bicycle[] }
+  | { type: 'SET_WORK_ORDERS'; payload: WorkOrder[] }
   | { type: 'UPDATE_PART'; payload: PartItem };
 
 const initialState: AppState = {
   currentUser: null,
-  users: mockUsers, // <-- LÍNEA AÑADIDA
-  clients: mockClients,
-  bicycles: mockBicycles,
-  workOrders: mockWorkOrders,
+  users: [], // <-- LÍNEA AÑADIDA
+  clients: [],
+  bicycles: [],
+  workOrders: [],
   services: [],
   parts: [],
   isLoading: false
@@ -41,6 +53,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_USER':
       return { ...state, currentUser: action.payload };
+
+    case 'SET_CLIENTS':
+      return { ...state, clients: action.payload };
+
+    case 'SET_BICYCLES':
+      return { ...state, bicycles: action.payload };
+
+    case 'SET_WORK_ORDERS':
+      return { ...state, workOrders: action.payload };
     
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
@@ -49,33 +70,44 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, clients: [...state.clients, action.payload] };
     
     case 'UPDATE_CLIENT':
+      updateClient(action.payload.id, action.payload); // Llama a Firebase
       return {
         ...state,
-        clients: state.clients.map(client => 
-          client.id === action.payload.id ? action.payload : client
-        )
+        clients: state.clients.map(c => c.id === action.payload.id ? action.payload : c),
+      };
+
+    case 'DELETE_CLIENT':
+      deleteClient(action.payload); // Llama a Firebase
+      return {
+        ...state,
+        clients: state.clients.filter(c => c.id !== action.payload),
       };
     
     case 'ADD_BICYCLE':
       return { ...state, bicycles: [...state.bicycles, action.payload] };
     
     case 'UPDATE_BICYCLE':
+      updateBicycle(action.payload.id, action.payload); // Llama a Firebase
       return {
         ...state,
-        bicycles: state.bicycles.map(bicycle => 
-          bicycle.id === action.payload.id ? action.payload : bicycle
-        )
+        bicycles: state.bicycles.map(b => b.id === action.payload.id ? action.payload : b),
+      };
+
+    case 'DELETE_BICYCLE':
+      deleteBicycle(action.payload); // Llama a Firebase
+      return {
+        ...state,
+        bicycles: state.bicycles.filter(b => b.id !== action.payload),
       };
     
     case 'ADD_WORK_ORDER':
       return { ...state, workOrders: [...state.workOrders, action.payload] };
     
     case 'UPDATE_WORK_ORDER':
+      updateWorkOrder(action.payload.id, action.payload); // Llama a Firebase
       return {
         ...state,
-        workOrders: state.workOrders.map(wo => 
-          wo.id === action.payload.id ? action.payload : wo
-        )
+        workOrders: state.workOrders.map(wo => wo.id === action.payload.id ? action.payload : wo),
       };
     
     case 'START_WORK_ORDER':
@@ -133,6 +165,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
             ? { ...wo, workTimeMinutes: action.payload.minutes }
             : wo
         )
+      };
+
+    case 'DELETE_WORK_ORDER':
+      deleteWorkOrder(action.payload); // Llama a Firebase
+      return {
+        ...state,
+        workOrders: state.workOrders.filter(wo => wo.id !== action.payload),
       };
 
     case 'SET_SERVICES':
@@ -197,18 +236,85 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   useEffect(() => {
-      const fetchInventory = async () => {
-        // Solo se ejecuta la carga si las listas en el estado están vacías.
-        // Esto previene la duplicación de datos en el modo de desarrollo.
-        if (state.services.length === 0 && state.parts.length === 0) {
-          const servicesFromFirebase = await getServices();
-          const partsFromFirebase = await getParts();
-          dispatch({ type: 'SET_SERVICES', payload: servicesFromFirebase });
-          dispatch({ type: 'SET_PARTS', payload: partsFromFirebase });
+    // Usamos una bandera para evitar la doble ejecución en modo estricto de React
+    let isMounted = true;
+
+    const fetchData = async () => {
+      console.log("Iniciando carga de datos desde Firebase...");
+      try {
+        // --- Carga de Clientes ---
+        const clientsSnapshot = await getDocs(collection(db, "clients"));
+        const clientsData = clientsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+            id: doc.id, 
+            ...data,
+            // Conversión segura de fechas
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
+          } as Client;
+        });
+        if (isMounted) {
+          dispatch({ type: 'SET_CLIENTS', payload: clientsData });
+          console.log("Clientes cargados:", clientsData.length);
         }
-      };
-      fetchInventory();
-    }, []);
+
+        // --- Carga de Bicicletas ---
+        const bicyclesSnapshot = await getDocs(collection(db, "bicycles"));
+        const bicyclesData = bicyclesSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+            id: doc.id, 
+            ...data,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
+          } as Bicycle;
+        });
+        if (isMounted) {
+          dispatch({ type: 'SET_BICYCLES', payload: bicyclesData });
+          console.log("Bicicletas cargadas:", bicyclesData.length);
+        }
+
+        // --- Carga de Fichas de Trabajo ---
+        const workOrdersSnapshot = await getDocs(collection(db, "workorders"));
+        const workOrdersData = workOrdersSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            client: clientsData.find(c => c.id === data.clientId),
+            bicycle: bicyclesData.find(b => b.id === data.bicycleId),
+            estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
+          } as WorkOrder;
+        });
+        if (isMounted) {
+          dispatch({ type: 'SET_WORK_ORDERS', payload: workOrdersData });
+          console.log("Fichas de trabajo cargadas:", workOrdersData.length);
+        }
+
+        // --- Carga de Inventario ---
+        const servicesData = await getServices();
+        const partsData = await getParts();
+        if (isMounted) {
+            dispatch({ type: 'SET_SERVICES', payload: servicesData });
+            dispatch({ type: 'SET_PARTS', payload: partsData });
+            console.log("Inventario cargado:", { services: servicesData.length, parts: partsData.length });
+        }
+
+      } catch (error) {
+        console.error("Error crítico al cargar datos desde Firebase: ", error);
+      }
+    };
+
+    fetchData();
+
+    // Función de limpieza para evitar efectos secundarios en modo estricto
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
