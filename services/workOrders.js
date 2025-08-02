@@ -1,6 +1,7 @@
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from '../firebase/config';
 
+// CORRECCIÓN 1: Apuntar a la colección correcta
 const workOrdersCollection = collection(db, "workorders");
 
 export const getWorkOrders = async (clientsData, bicyclesData) => {
@@ -22,11 +23,7 @@ export const getWorkOrders = async (clientsData, bicyclesData) => {
 };
 
 export const createWorkOrder = async (workOrderData, client, bicycle) => {
-    const dataToSave = {
-      ...workOrderData,
-      client: null,
-      bicycle: null,
-    };
+    const dataToSave = { ...workOrderData };
     delete dataToSave.client;
     delete dataToSave.bicycle;
     const docRef = await addDoc(workOrdersCollection, dataToSave);
@@ -37,8 +34,8 @@ export const startWorkOnOrder = async (workOrderId, mechanicId) => {
     const workOrderDoc = doc(db, "workorders", workOrderId);
     await updateDoc(workOrderDoc, {
         status: 'in_progress',
-        startedAt: new Date(), // Guarda la fecha y hora actual
-        mechanicId: mechanicId // Asigna el mecánico a la ficha
+        startedAt: new Date(),
+        mechanicId: mechanicId
     });
 };
 
@@ -46,16 +43,41 @@ export const completeWorkOnOrder = async (workOrderId) => {
     const workOrderDoc = doc(db, "workorders", workOrderId);
     await updateDoc(workOrderDoc, {
         status: 'ready_for_delivery',
-        completedAt: new Date() // Guarda la fecha y hora actual
+        completedAt: new Date()
     });
 };
 
+// CORRECCIÓN 2: Guardar los datos en el formato anidado correcto
 export const updateWorkOrder = async (workOrderId, workOrderData) => {
     const workOrderDoc = doc(db, "workorders", workOrderId);
-    const dataToUpdate = { ...workOrderData, updatedAt: new Date() };
-    // Evitamos guardar los objetos anidados de cliente y bicicleta en la BD
+
+    const dataToUpdate = { ...workOrderData };
+    
+    // Nos aseguramos de que la estructura anidada sea la correcta para Firestore
+    if (dataToUpdate.services) {
+        dataToUpdate.services = dataToUpdate.services.map(s => ({
+            id: s.id,
+            serviceId: s.service.id,
+            service: { id: s.service.id, name: s.service.name, price: s.service.price },
+            quantity: s.quantity,
+            price: s.price
+        }));
+    }
+
+    if (dataToUpdate.parts) {
+        dataToUpdate.parts = dataToUpdate.parts.map(p => ({
+            id: p.id,
+            partId: p.part.id,
+            part: { id: p.part.id, name: p.part.name, price: p.part.price, stock: p.part.stock },
+            quantity: p.quantity,
+            price: p.price
+        }));
+    }
+
     delete dataToUpdate.client;
     delete dataToUpdate.bicycle;
+    dataToUpdate.updatedAt = new Date();
+
     await updateDoc(workOrderDoc, dataToUpdate);
 };
 

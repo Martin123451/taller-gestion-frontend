@@ -477,7 +477,7 @@ export default function AdminDashboard() {
         <TabsContent value="clients" className="mt-6"><ClientsTab onNewClientClick={() => setShowAddClientModal(true)} /></TabsContent>
         <TabsContent value="bicycles" className="mt-6"><BicyclesTab onNewBicycleClick={() => setShowAddBicycleModal(true)} /></TabsContent>
         <TabsContent value="workorders" className="mt-6"><WorkOrdersTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
-        <TabsContent value="inventory" className="mt-6"><InventoryManagement /></TabsContent>
+        <TabsContent value="inventory" className="mt-6"><InventoryManagement activeTab={activeTab} /></TabsContent>
         <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
       </Tabs>
       
