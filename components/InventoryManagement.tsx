@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
@@ -11,8 +11,8 @@ import { ServiceItem, PartItem } from '../lib/types';
 import EditItemDialog from './EditItemDialog'; // <-- 1. IMPORTAMOS EL NUEVO COMPONENTE
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import { Trash2 } from 'lucide-react';
-import { createService } from '../services/services';
-import { createPart } from '../services/parts';
+import { getServices } from '../services/services';
+import { getParts } from '../services/parts';
 
 // El formulario de creación no ha cambiado
 const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType: 'service' | 'part' }) => {
@@ -50,21 +50,49 @@ const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType:
     );
 };
 
-export default function InventoryManagement() {
+export default function InventoryManagement({ activeTab }: { activeTab: string }) {
   const { state, dispatch } = useApp();
+    useEffect(() => {
+    const refreshInventory = async () => {
+      console.log("Pestaña de inventario activa, actualizando datos...");
+
+      // Volvemos a llamar a las funciones que ya existen para traer los datos
+      const servicesFromFirebase = await getServices();
+      const partsFromFirebase = await getParts();
+
+      // Enviamos los nuevos datos al "cerebro" de la app
+      dispatch({ type: 'SET_SERVICES', payload: servicesFromFirebase });
+      dispatch({ type: 'SET_PARTS', payload: partsFromFirebase });
+    };
+
+    // Si la pestaña que se acaba de activar es la de "inventario", recargamos los datos.
+    if (activeTab === 'inventory') {
+      refreshInventory();
+    }
+  }, [activeTab, dispatch]);
   const [isNewServiceDialogOpen, setIsNewServiceDialogOpen] = useState(false);
   const [isNewPartDialogOpen, setIsNewPartDialogOpen] = useState(false);
 
-const handleSaveService = async (serviceData: ServiceItem) => {
-    const newServiceWithId = await createService({ ...serviceData, id: `temp-${Date.now()}` });
-    dispatch({ type: 'ADD_SERVICE', payload: newServiceWithId });
+const handleCreateService = (serviceData: ServiceItem) => {
+    // Esta función ahora solo AÑADE un nuevo servicio
+    dispatch({ type: 'ADD_SERVICE', payload: { ...serviceData, id: `service-${Date.now()}` } });
     setIsNewServiceDialogOpen(false);
 };
 
-const handleSavePart = async (partData: PartItem) => {
-    const newPartWithId = await createPart({ ...partData, id: `temp-${Date.now()}` });
-    dispatch({ type: 'ADD_PART', payload: newPartWithId });
+const handleCreatePart = (partData: PartItem) => {
+    // Esta función ahora solo AÑADE una nueva pieza
+    dispatch({ type: 'ADD_PART', payload: { ...partData, id: `part-${Date.now()}` } });
     setIsNewPartDialogOpen(false);
+};
+
+const handleUpdateService = (serviceData: ServiceItem) => {
+    // Esta función solo ACTUALIZA un servicio existente
+    dispatch({ type: 'UPDATE_SERVICE', payload: serviceData });
+};
+
+const handleUpdatePart = (partData: PartItem) => {
+    // Esta función solo ACTUALIZA una pieza existente
+    dispatch({ type: 'UPDATE_PART', payload: partData });
 };
 
   return (
@@ -84,7 +112,7 @@ const handleSavePart = async (partData: PartItem) => {
               <DialogHeader>
                 <DialogTitle>Crear Servicio</DialogTitle>
               </DialogHeader>
-              <ItemForm onSave={handleSaveService} itemType="service" />
+              <ItemForm onSave={handleCreateService} itemType="service" />
             </DialogContent>
           </Dialog>
         </CardHeader>
@@ -103,7 +131,7 @@ const handleSavePart = async (partData: PartItem) => {
                   <TableCell>{service.name}</TableCell>
                   <TableCell className="text-right">${service.price.toLocaleString()}</TableCell>
                   <TableCell className="text-center space-x-2">
-                    <EditItemDialog item={service} onSave={handleSaveService} itemType="service" />
+                    <EditItemDialog item={service} onSave={handleUpdateService} itemType="service" />
 
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -149,7 +177,7 @@ const handleSavePart = async (partData: PartItem) => {
               <DialogHeader>
                 <DialogTitle>Crear Pieza</DialogTitle>
               </DialogHeader>
-              <ItemForm onSave={handleSavePart} itemType="part" />
+              <ItemForm onSave={handleCreatePart} itemType="part" />
             </DialogContent>
           </Dialog>
         </CardHeader>
@@ -170,7 +198,7 @@ const handleSavePart = async (partData: PartItem) => {
                   <TableCell>{part.stock}</TableCell>
                   <TableCell className="text-right">${part.price.toLocaleString()}</TableCell>
                   <TableCell className="text-center space-x-2">
-                    <EditItemDialog item={part} onSave={handleSavePart} itemType="part" />
+                    <EditItemDialog item={part} onSave={handleUpdatePart} itemType="part" />
 
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

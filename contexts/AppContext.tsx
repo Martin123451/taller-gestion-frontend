@@ -5,7 +5,7 @@ import { getServices, createService, updateService, deleteService } from '../ser
 import { getParts, createPart, updatePart, deletePart } from '../services/parts';
 import { getClients, createClient, updateClient, deleteClient } from '../services/clients';
 import { getBicycles, createBicycle, updateBicycle, deleteBicycle } from '../services/bicycles';
-import { getWorkOrders, createWorkOrder, startWorkOnOrder, completeWorkOnOrder,updateWorkOrder } from '../services/workOrders';
+import { getWorkOrders, createWorkOrder, startWorkOnOrder, completeWorkOnOrder,updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
 import { getUsers } from '../services/users';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '../firebase/config';
@@ -111,10 +111,19 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, workOrders: [...state.workOrders, action.payload] };
     
     case 'UPDATE_WORK_ORDER':
-      updateWorkOrder(action.payload.id, action.payload); // Llama a Firebase
+      // Llama a la función de Firebase en segundo plano
+      updateWorkOrder(action.payload.id, {
+          services: action.payload.services,
+          parts: action.payload.parts,
+          totalAmount: action.payload.totalAmount,
+          mechanicNotes: action.payload.mechanicNotes
+      });
+      // Actualiza el estado local para una respuesta visual instantánea
       return {
         ...state,
-        workOrders: state.workOrders.map(wo => wo.id === action.payload.id ? action.payload : wo),
+        workOrders: state.workOrders.map(wo => 
+          wo.id === action.payload.id ? action.payload : wo
+        ),
       };
       
     
