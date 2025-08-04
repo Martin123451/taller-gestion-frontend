@@ -5,16 +5,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { ServiceItem, PartItem } from '../../lib/types';
-import EditItemDialog from '../../components/EditItemDialog'; // <-- 1. IMPORTAMOS EL NUEVO COMPONENTE
+import EditItemDialog from '../../components/EditItemDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
-import { Trash2 } from 'lucide-react';
-import { getServices } from '../../services/services';
-import { getParts } from '../../services/parts';
+import { getServices, createService } from '../../services/services';
+import { getParts, createPart } from '../../services/parts';
 
-// El formulario de creación no ha cambiado
 const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType: 'service' | 'part' }) => {
     const [formData, setFormData] = useState({ name: '', price: 0, ...(itemType === 'part' && { stock: 0, brand: '' }) });
 
@@ -52,48 +50,53 @@ const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType:
 
 export default function InventoryManagement({ activeTab }: { activeTab: string }) {
   const { state, dispatch } = useApp();
-    useEffect(() => {
+  
+  useEffect(() => {
     const refreshInventory = async () => {
       console.log("Pestaña de inventario activa, actualizando datos...");
-
-      // Volvemos a llamar a las funciones que ya existen para traer los datos
       const servicesFromFirebase = await getServices();
       const partsFromFirebase = await getParts();
-
-      // Enviamos los nuevos datos al "cerebro" de la app
       dispatch({ type: 'SET_SERVICES', payload: servicesFromFirebase });
       dispatch({ type: 'SET_PARTS', payload: partsFromFirebase });
     };
 
-    // Si la pestaña que se acaba de activar es la de "inventario", recargamos los datos.
     if (activeTab === 'inventory') {
       refreshInventory();
     }
   }, [activeTab, dispatch]);
+
   const [isNewServiceDialogOpen, setIsNewServiceDialogOpen] = useState(false);
   const [isNewPartDialogOpen, setIsNewPartDialogOpen] = useState(false);
 
-const handleCreateService = (serviceData: ServiceItem) => {
-    // Esta función ahora solo AÑADE un nuevo servicio
-    dispatch({ type: 'ADD_SERVICE', payload: { ...serviceData, id: `service-${Date.now()}` } });
-    setIsNewServiceDialogOpen(false);
-};
+  const handleCreateService = async (serviceData: Omit<ServiceItem, 'id'>) => {
+    try {
+      const newServiceFromDB = await createService(serviceData);
+      dispatch({ type: 'ADD_SERVICE', payload: newServiceFromDB });
+      setIsNewServiceDialogOpen(false); // Cerramos el modal
+    } catch (error) {
+      console.error("Error al crear el servicio:", error);
+      alert("No se pudo crear el servicio. Inténtalo de nuevo.");
+    }
+  };
 
-const handleCreatePart = (partData: PartItem) => {
-    // Esta función ahora solo AÑADE una nueva pieza
-    dispatch({ type: 'ADD_PART', payload: { ...partData, id: `part-${Date.now()}` } });
-    setIsNewPartDialogOpen(false);
-};
+  const handleCreatePart = async (partData: Omit<PartItem, 'id'>) => {
+    try {
+      const newPartFromDB = await createPart(partData);
+      dispatch({ type: 'ADD_PART', payload: newPartFromDB });
+      setIsNewPartDialogOpen(false); // Cerramos el modal
+    } catch (error) {
+      console.error("Error al crear la pieza:", error);
+      alert("No se pudo crear la pieza. Inténtalo de nuevo.");
+    }
+  };
 
-const handleUpdateService = (serviceData: ServiceItem) => {
-    // Esta función solo ACTUALIZA un servicio existente
-    dispatch({ type: 'UPDATE_SERVICE', payload: serviceData });
-};
+  const handleUpdateService = (serviceData: ServiceItem) => {
+      dispatch({ type: 'UPDATE_SERVICE', payload: serviceData });
+  };
 
-const handleUpdatePart = (partData: PartItem) => {
-    // Esta función solo ACTUALIZA una pieza existente
-    dispatch({ type: 'UPDATE_PART', payload: partData });
-};
+  const handleUpdatePart = (partData: PartItem) => {
+      dispatch({ type: 'UPDATE_PART', payload: partData });
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -122,7 +125,7 @@ const handleUpdatePart = (partData: PartItem) => {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
-                <TableHead className="w-[100px] text-center">Acciones</TableHead> {/* <-- 2. AÑADIMOS LA CABECERA */}
+                <TableHead className="w-[100px] text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -132,25 +135,18 @@ const handleUpdatePart = (partData: PartItem) => {
                   <TableCell className="text-right">${service.price.toLocaleString()}</TableCell>
                   <TableCell className="text-center space-x-2">
                     <EditItemDialog item={service} onSave={handleUpdateService} itemType="service" />
-
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs">
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs"><Trash2 className="h-3 w-3" /></Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Esto eliminará permanentemente el servicio.
-                          </AlertDialogDescription>
+                          <AlertDialogDescription>Esta acción no se puede deshacer. Esto eliminará permanentemente el servicio.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => dispatch({ type: 'DELETE_SERVICE', payload: service.id })}>
-                            Eliminar
-                          </AlertDialogAction>
+                          <AlertDialogAction onClick={() => dispatch({ type: 'DELETE_SERVICE', payload: service.id })}>Eliminar</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -188,7 +184,7 @@ const handleUpdatePart = (partData: PartItem) => {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
-                <TableHead className="w-[100px] text-center">Acciones</TableHead> {/* <-- 2. AÑADIMOS LA CABECERA */}
+                <TableHead className="w-[100px] text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -199,25 +195,18 @@ const handleUpdatePart = (partData: PartItem) => {
                   <TableCell className="text-right">${part.price.toLocaleString()}</TableCell>
                   <TableCell className="text-center space-x-2">
                     <EditItemDialog item={part} onSave={handleUpdatePart} itemType="part" />
-
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs">
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs"><Trash2 className="h-3 w-3" /></Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Esto eliminará permanentemente la pieza.
-                          </AlertDialogDescription>
+                          <AlertDialogDescription>Esta acción no se puede deshacer. Esto eliminará permanentemente la pieza.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => dispatch({ type: 'DELETE_PART', payload: part.id })}>
-                            Eliminar
-                          </AlertDialogAction>
+                          <AlertDialogAction onClick={() => dispatch({ type: 'DELETE_PART', payload: part.id })}>Eliminar</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>

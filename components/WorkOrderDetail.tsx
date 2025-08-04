@@ -16,6 +16,11 @@ interface WorkOrderDetailProps {
   onClose: () => void;
 }
 
+interface StockUpdate {
+  partId: string;
+  quantityChange: number;
+}
+
 export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
     const { state, dispatch } = useApp();
     const { currentUser } = state;
@@ -94,14 +99,23 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
     };
 
     const saveChanges = async () => {
-        const stockUpdates = [];
+        const stockUpdates: StockUpdate[] = [];
         const originalParts = workOrder.parts || [];
 
         parts.forEach(currentPart => {
-            const originalPart = originalParts.find(p => p.id === currentPart.id);
-            const quantityChange = originalPart ? currentPart.quantity - originalPart.quantity : currentPart.quantity;
-            if (quantityChange > 0) {
-                stockUpdates.push({ partId: currentPart.partId, quantityChange });
+            const originalPart = originalParts.find(p => p.partId === currentPart.partId); // Lógica corregida a partId
+            const originalQuantity = originalPart ? originalPart.quantity : 0;
+            const quantityChange = currentPart.quantity - originalQuantity;
+
+            if (quantityChange !== 0) {
+                 stockUpdates.push({ partId: currentPart.partId, quantityChange: -quantityChange }); // Se envía el cambio neto
+            }
+        });
+        
+        originalParts.forEach(originalPart => {
+            const currentPart = parts.find(p => p.partId === originalPart.partId);
+            if (!currentPart) {
+                stockUpdates.push({ partId: originalPart.partId, quantityChange: originalPart.quantity });
             }
         });
 
@@ -122,7 +136,8 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             if (onClose) onClose();
         } catch (error) {
             console.error("Error al guardar cambios:", error);
-            alert(`No se pudieron guardar los cambios: ${error}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            alert(`No se pudieron guardar los cambios: ${errorMessage}`);
         }
     };
 
