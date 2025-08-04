@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Plus } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
-import { ServiceItem, PartItem } from '../lib/types';
-import EditItemDialog from './EditItemDialog'; // <-- 1. IMPORTAMOS EL NUEVO COMPONENTE
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { useApp } from '../../contexts/AppContext';
+import { ServiceItem, PartItem } from '../../lib/types';
+import EditItemDialog from '../../components/EditItemDialog'; // <-- 1. IMPORTAMOS EL NUEVO COMPONENTE
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
 import { Trash2 } from 'lucide-react';
-import { getServices } from '../services/services';
-import { getParts } from '../services/parts';
+import { getServices } from '../../services/services';
+import { getParts } from '../../services/parts';
 
 // El formulario de creación no ha cambiado
 const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType: 'service' | 'part' }) => {

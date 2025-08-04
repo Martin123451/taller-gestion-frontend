@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useAuth } from '../contexts/AppContext';
 import KanbanBoard from './KanbanBoard';
-import AdminDashboard from './AdminDashboard';
+import AdminDashboard from '../app/admin/AdminDashboard';
 import marchantBikeLogo from "../assets/logo.png";
 import { LogOut, Menu, User, Settings, ArrowLeft } from 'lucide-react';
 

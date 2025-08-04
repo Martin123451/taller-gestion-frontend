@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppProvider, useAuth } from './contexts/AppContext';
-import AuthLogin from './components/AuthLogin';
+import AuthLogin from './app/auth/AuthLogin';
 import Layout from './components/Layout';
 import { Toaster } from './components/ui/sonner';
 

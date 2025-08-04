@@ -1,8 +1,8 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { useApp } from '../contexts/AppContext';
-import { User } from '../lib/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { useApp } from '../../contexts/AppContext';
+import { User } from '../../lib/types';
 import { ArrowLeft } from 'lucide-react';
 
 interface MechanicSelectionProps {
