@@ -207,7 +207,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, parts: [...state.parts, action.payload] };
 
     case 'UPDATE_PART':
-      updatePart(action.payload.id, action.payload); // Llama a Firebase
+      updatePart(action.payload.id, action.payload);
       return {
         ...state,
         parts: state.parts.map(p => 
