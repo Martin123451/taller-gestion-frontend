@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { useAuth } from '../contexts/AppContext';
-import marchantBikeLogo from '../assets/logo.png'; // Asegúrate que la ruta al logo sea correcta
-import MechanicSelection from './MechanicSelection'; // Importamos el nuevo componente
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { useAuth } from '../../contexts/AppContext';
+import marchantBikeLogo from '../../assets/logo.png'; // Asegúrate que la ruta al logo sea correcta
+import MechanicSelection from '../mechanic/MechanicSelection'; // Importamos el nuevo componente
 
 export default function AuthLogin() {
   const { login } = useAuth();
