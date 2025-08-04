@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // <-- AÑADIDO: useEffect
 import { useApp } from './../contexts/AppContext';
-import { WorkOrder, WorkOrderService, WorkOrderPart } from './../lib/types';
-import { updatePartStock } from './../services/parts';
+import { WorkOrder, WorkOrderService, WorkOrderPart, PartItem } from './../lib/types'; // <-- AÑADIDO: PartItem
+import { getParts, updatePartStock } from './../services/parts';
 
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -29,6 +29,26 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
     const [parts, setParts] = useState<WorkOrderPart[]>(workOrder.parts || []);
     const [mechanicNotes, setMechanicNotes] = useState(workOrder.mechanicNotes || '');
 
+    const [freshParts, setFreshParts] = useState<PartItem[] | null>(null);
+    const [isLoadingParts, setIsLoadingParts] = useState(true);
+
+    useEffect(() => {
+      const fetchFreshParts = async () => {
+        try {
+          setIsLoadingParts(true);
+          const partsFromDB = await getParts();
+          setFreshParts(partsFromDB);
+        } catch (error) {
+          console.error("Error al obtener el inventario actualizado:", error);
+          setFreshParts(state.parts);
+        } finally {
+          setIsLoadingParts(false);
+        }
+      };
+
+      fetchFreshParts();
+    }, []);
+
     const addService = (serviceId: string) => {
       const serviceToAdd = state.services.find(s => s.id === serviceId);
       if (serviceToAdd && !services.some(s => s.serviceId === serviceId)) {
@@ -44,7 +64,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
     };
 
     const addPart = (partId: string) => {
-      const partToAdd = state.parts.find(p => p.id === partId);
+      const partToAdd = freshParts?.find(p => p.id === partId);
       if (partToAdd && partToAdd.stock > 0 && !parts.some(p => p.partId === partId)) {
         const newPart: WorkOrderPart = {
           id: `wop-${Date.now()}`,
@@ -73,10 +93,9 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           if (quantity > p.quantity) {
             const originalPart = workOrder.parts.find(op => op.id === partListItemId);
             const originalQuantity = originalPart ? originalPart.quantity : 0;
-            const freshPartData = state.parts.find(fp => fp.id === p.partId);
+            const freshPartData = freshParts?.find(fp => fp.id === p.partId);
             const availableStock = freshPartData?.stock || 0;
             const newlyAddedCount = p.quantity - originalQuantity;
-
             if (newlyAddedCount >= availableStock) {
               alert(`No hay más stock disponible para agregar de "${p.part?.name}".`);
               return p;
@@ -103,19 +122,19 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
         const originalParts = workOrder.parts || [];
 
         parts.forEach(currentPart => {
-            const originalPart = originalParts.find(p => p.partId === currentPart.partId); // Lógica corregida a partId
+            const originalPart = originalParts.find(p => p.partId === currentPart.partId);
             const originalQuantity = originalPart ? originalPart.quantity : 0;
             const quantityChange = currentPart.quantity - originalQuantity;
 
             if (quantityChange !== 0) {
-                 stockUpdates.push({ partId: currentPart.partId, quantityChange: -quantityChange }); // Se envía el cambio neto
+              stockUpdates.push({ partId: currentPart.partId, quantityChange: quantityChange });
             }
         });
         
         originalParts.forEach(originalPart => {
             const currentPart = parts.find(p => p.partId === originalPart.partId);
             if (!currentPart) {
-                stockUpdates.push({ partId: originalPart.partId, quantityChange: originalPart.quantity });
+              stockUpdates.push({ partId: originalPart.partId, quantityChange: -originalPart.quantity });
             }
         });
 
@@ -133,6 +152,9 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                 updatedAt: new Date()
             };
             dispatch({ type: 'UPDATE_WORK_ORDER', payload: updatedWorkOrder });
+            const updatedPartsFromDB = await getParts();
+            dispatch({ type: 'SET_PARTS', payload: updatedPartsFromDB });
+            
             if (onClose) onClose();
         } catch (error) {
             console.error("Error al guardar cambios:", error);
@@ -184,9 +206,17 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-marchant-green">Piezas</h4>
-              <Select onValueChange={addPart}>
-                <SelectTrigger className="w-48"><SelectValue placeholder="Agregar pieza" /></SelectTrigger>
-                <SelectContent>{state.parts.map(part => (<SelectItem key={part.id} value={part.id} disabled={part.stock === 0}>{part.name} ({part.stock} disp.) - ${part.price.toLocaleString()}</SelectItem>))}</SelectContent>
+              <Select onValueChange={addPart} disabled={isLoadingParts}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder={isLoadingParts ? "Cargando..." : "Agregar pieza"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {freshParts?.map(part => (
+                    <SelectItem key={part.id} value={part.id} disabled={part.stock === 0}>
+                      {part.name} ({part.stock} disp.) - ${part.price.toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             {parts.map(part => (
