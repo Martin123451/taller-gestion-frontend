@@ -17,7 +17,8 @@ import { createClient } from '../../services/clients';
 import { createBicycle } from '../../services/bicycles';
 import { createWorkOrder } from '../../services/workOrders';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
-import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download, Trash2 } from 'lucide-react';
+import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download, Clock, AlertTriangle, Send, DollarSign, Trash2 } from 'lucide-react';
+import QuoteDetailDialog from '../../components/QuoteDetailDialog';
 
 // --- SUB-COMPONENTES DE FORMULARIOS (Definidos fuera para estabilidad) ---
 
@@ -143,12 +144,14 @@ const translateStatus = (status: WorkOrderStatus) => {
     }
 };
 
-const OverviewTab = ({ onNewWorkOrderClick }: { onNewWorkOrderClick: () => void }) => {
+const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNewWorkOrderClick: () => void, onSelectWorkOrderForQuote: (workOrder: WorkOrder) => void }) => {
     const { state, dispatch } = useApp();
     const totalClients = state.clients.length;
     const totalBicycles = state.bicycles.length;
     const openWorkOrders = state.workOrders.filter(wo => wo.status === 'open').length;
+    const inProgressWorkOrders = state.workOrders.filter(wo => wo.status === 'in_progress');
     const readyForDelivery = state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length;
+    const workOrdersNeedingQuotes = inProgressWorkOrders.filter(wo => wo.needsQuote && !wo.quote);
     
     return (
         <div className="space-y-6">
@@ -158,7 +161,22 @@ const OverviewTab = ({ onNewWorkOrderClick }: { onNewWorkOrderClick: () => void 
                 <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm">Fichas Abiertas</CardTitle><FileText className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl">{openWorkOrders}</div><p className="text-xs text-muted-foreground">Pendientes</p></CardContent></Card>
                 <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm">Para Entrega</CardTitle><Truck className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl">{readyForDelivery}</div><p className="text-xs text-muted-foreground">Listas</p></CardContent></Card>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {workOrdersNeedingQuotes.length > 0 && (
+                <Card className="bg-yellow-50 border-yellow-300 text-yellow-800 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setActiveTab('in-progress')}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div className="flex items-center">
+                            <AlertTriangle className="h-6 w-6 mr-4 text-yellow-500" />
+                            <div>
+                                <p className="font-bold">Tienes {workOrdersNeedingQuotes.length} cotización(es) pendiente(s)</p>
+                                <p className="text-sm">Revísalas en la sección "Fichas en Progreso".</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div><CardTitle>Próximas Entregas</CardTitle><CardDescription>Fichas ordenadas por fecha de entrega</CardDescription></div>
@@ -175,6 +193,66 @@ const OverviewTab = ({ onNewWorkOrderClick }: { onNewWorkOrderClick: () => void 
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-marchant-green" />
+                        Fichas en Progreso
+                        </CardTitle>
+                        <CardDescription>Gestión de cotizaciones y trabajo adicional</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                        {inProgressWorkOrders.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                            No hay fichas en progreso
+                            </p>
+                        ) : (
+                            inProgressWorkOrders.map(workOrder => (
+                            <div
+                                key={workOrder.id}
+                                className="cursor-pointer border rounded-lg p-3 hover:shadow-md transition-shadow"
+                                onClick={() => onSelectWorkOrderForQuote(workOrder)}
+                            >
+                                <div className="flex items-start justify-between mb-2">
+                                <div className="space-y-1">
+                                    <p className="text-sm text-marchant-green">{workOrder.client.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                    {workOrder.bicycle.brand} {workOrder.bicycle.model}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    {workOrder.needsQuote && !workOrder.quote && (
+                                        <Badge variant="outline" className="bg-yellow-50 border-yellow-300 text-yellow-700"><AlertTriangle className="h-3 w-3 mr-1" />Necesita Cotización</Badge>
+                                    )}
+                                    {workOrder.quote?.status === 'sent' && (
+                                        <Badge variant="outline" className="bg-blue-50 border-blue-300 text-blue-700"><Send className="h-3 w-3 mr-1" />Cotización Enviada</Badge>
+                                    )}
+                                    {workOrder.quote?.status === 'approved' && (
+                                        <Badge className="bg-marchant-green text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Aprobada</Badge>
+                                    )}
+                                    {workOrder.quote?.status === 'rejected' && (
+                                        <Badge className="bg-marchant-red text-white">Rechazada</Badge>
+                                    )}
+                                </div>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t">
+                                <span>#{workOrder.id.slice(-6)}</span>
+                                <div className="text-right">
+                                    <p>Total: ${workOrder.totalAmount.toLocaleString()}</p>
+                                    {workOrder.originalAmount && workOrder.originalAmount !== workOrder.totalAmount && (
+                                            <p className="text-yellow-600">(+${(workOrder.totalAmount - workOrder.originalAmount).toLocaleString()})</p>
+                                    )}
+                                </div>
+                                </div>
+                            </div>
+                            ))
+                        )}
+                        </div>
+                    </CardContent>
+                    </Card>
+
                 <Card>
                     <CardHeader><CardTitle>Para Entrega</CardTitle><CardDescription>Bicicletas listas para entregar a clientes</CardDescription></CardHeader>
                     <CardContent>
@@ -451,6 +529,7 @@ const DataTab = () => (
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedWorkOrderForQuote, setSelectedWorkOrderForQuote] = useState<WorkOrder | null>(null);
   
   const [newWorkOrder, setNewWorkOrder] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
   const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
@@ -473,7 +552,12 @@ export default function AdminDashboard() {
             <TabsTrigger value="inventory">Inventario</TabsTrigger>
             <TabsTrigger value="data">Datos</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="mt-6"><OverviewTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
+        <TabsContent value="overview" className="mt-6">
+          <OverviewTab 
+            onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} 
+            onSelectWorkOrderForQuote={setSelectedWorkOrderForQuote}
+          />
+        </TabsContent>
         <TabsContent value="clients" className="mt-6"><ClientsTab onNewClientClick={() => setShowAddClientModal(true)} /></TabsContent>
         <TabsContent value="bicycles" className="mt-6"><BicyclesTab onNewBicycleClick={() => setShowAddBicycleModal(true)} /></TabsContent>
         <TabsContent value="workorders" className="mt-6"><WorkOrdersTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
@@ -518,6 +602,15 @@ export default function AdminDashboard() {
               />
           </DialogContent>
       </Dialog>
+
+       {selectedWorkOrderForQuote && (
+          <QuoteDetailDialog
+              workOrder={selectedWorkOrderForQuote}
+              open={!!selectedWorkOrderForQuote}
+              onOpenChange={(open) => !open && setSelectedWorkOrderForQuote(null)}
+          />
+      )}
+
     </div>
   );
 }

@@ -90,6 +90,16 @@ export interface WorkOrder {
   estimatedDeliveryDate?: Date;
   createdAt: Date;
   updatedAt: Date;
+  needsQuote?: boolean;
+  originalServices?: WorkOrderService[];
+  originalParts?: WorkOrderPart[];
+  originalAmount?: number;
+  quote?: {
+    status: 'pending' | 'sent' | 'approved' | 'rejected';
+    sentAt?: Date;
+    respondedAt?: Date;
+    clientResponse?: string;
+  };
 }
 
 export interface AppState {

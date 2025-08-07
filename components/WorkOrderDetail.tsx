@@ -118,6 +118,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
     };
 
     const saveChanges = async () => {
+        // La lógica para calcular los cambios de stock que ya funciona se mantiene intacta
         const stockUpdates: StockUpdate[] = [];
         const originalParts = workOrder.parts || [];
 
@@ -127,14 +128,14 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             const quantityChange = currentPart.quantity - originalQuantity;
 
             if (quantityChange !== 0) {
-              stockUpdates.push({ partId: currentPart.partId, quantityChange: quantityChange });
+                stockUpdates.push({ partId: currentPart.partId, quantityChange: quantityChange });
             }
         });
         
         originalParts.forEach(originalPart => {
             const currentPart = parts.find(p => p.partId === originalPart.partId);
             if (!currentPart) {
-              stockUpdates.push({ partId: originalPart.partId, quantityChange: -originalPart.quantity });
+                stockUpdates.push({ partId: originalPart.partId, quantityChange: -originalPart.quantity });
             }
         });
 
@@ -142,7 +143,9 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             if (stockUpdates.length > 0) {
                 await updatePartStock(stockUpdates);
             }
-            const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
+            const totalAmount = [...services, ...parts].reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            // Hacemos una copia de la ficha para añadir la nueva lógica
             const updatedWorkOrder: WorkOrder = {
                 ...workOrder,
                 services,
@@ -151,11 +154,37 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                 mechanicNotes,
                 updatedAt: new Date()
             };
+
+            // ====================================================================
+            // ESTA ES LA LÓGICA CLAVE CORREGIDA
+            // ====================================================================
+            if (workOrder.status === 'open') {
+                // Si la ficha está abierta, todo lo que se añade es parte del trabajo original.
+                updatedWorkOrder.originalServices = services;
+                updatedWorkOrder.originalParts = parts;
+                updatedWorkOrder.originalAmount = totalAmount;
+                updatedWorkOrder.needsQuote = false; // No se necesita cotización.
+            } else if (workOrder.status === 'in_progress') {
+                // Si la ficha ya está en progreso, comparamos para ver si hay trabajo adicional.
+                const originalItemCount = (workOrder.originalServices?.length || 0) + (workOrder.originalParts?.length || 0);
+                const currentItemCount = services.length + parts.length;
+
+                // Si se añadieron nuevos ítems (no solo se cambiaron cantidades), se necesita cotización.
+                if (currentItemCount > originalItemCount) {
+                    updatedWorkOrder.needsQuote = true;
+                }
+            }
+            // ====================================================================
+
+            // Despachamos la ficha actualizada al "cerebro" de la app
             dispatch({ type: 'UPDATE_WORK_ORDER', payload: updatedWorkOrder });
+            
+            // Refrescamos la lista de piezas para tener el stock actualizado
             const updatedPartsFromDB = await getParts();
             dispatch({ type: 'SET_PARTS', payload: updatedPartsFromDB });
             
             if (onClose) onClose();
+
         } catch (error) {
             console.error("Error al guardar cambios:", error);
             const errorMessage = error instanceof Error ? error.message : String(error);
