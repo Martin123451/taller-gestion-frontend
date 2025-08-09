@@ -36,6 +36,11 @@ export const deletePart = async (partId) => {
 export const updatePartStock = async (stockUpdates) => {
     try {
         await runTransaction(db, async (transaction) => {
+            // ====================================================================
+            // FASE 1: TODAS LAS LECTURAS PRIMERO
+            // ====================================================================
+            const partUpdates = [];
+            
             for (const update of stockUpdates) {
                 const partRef = doc(db, "parts", update.partId);
                 const partDoc = await transaction.get(partRef);
@@ -52,7 +57,18 @@ export const updatePartStock = async (stockUpdates) => {
                     throw `No hay suficiente stock para la pieza ${partName}. Stock actual: ${currentStock}, se necesitan: ${update.quantityChange}.`;
                 }
 
-                transaction.update(partRef, { stock: newStock });
+                // Guardar datos para las escrituras
+                partUpdates.push({
+                    partRef,
+                    newStock
+                });
+            }
+
+            // ====================================================================
+            // FASE 2: TODAS LAS ESCRITURAS DESPUÉS
+            // ====================================================================
+            for (const partUpdate of partUpdates) {
+                transaction.update(partUpdate.partRef, { stock: partUpdate.newStock });
             }
         });
         console.log("Stock actualizado correctamente.");
