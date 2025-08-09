@@ -55,6 +55,7 @@ export interface WorkOrderService {
   quantity: number;
   price: number;
   notes?: string;
+  createdAt: Date;
 }
 
 export interface WorkOrderPart {
@@ -64,6 +65,7 @@ export interface WorkOrderPart {
   quantity: number;
   price: number;
   notes?: string;
+  createdAt: Date;
 }
 
 export type WorkOrderStatus = 'open' | 'in_progress' | 'ready_for_delivery' | 'completed';

@@ -57,7 +57,8 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           serviceId: serviceToAdd.id,
           service: serviceToAdd,
           quantity: 1,
-          price: serviceToAdd.price
+          price: serviceToAdd.price,
+          createdAt: new Date()
         };
         setServices([...services, newService]);
       }
@@ -71,7 +72,8 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           partId: partToAdd.id,
           part: partToAdd,
           quantity: 1,
-          price: partToAdd.price
+          price: partToAdd.price,
+          createdAt: new Date()
         };
         setParts([...parts, newPart]);
       }
@@ -143,7 +145,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             if (stockUpdates.length > 0) {
                 await updatePartStock(stockUpdates);
             }
-            const totalAmount = [...services, ...parts].reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
             
             // Hacemos una copia de la ficha para añadir la nueva lógica
             const updatedWorkOrder: WorkOrder = {

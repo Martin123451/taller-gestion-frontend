@@ -116,7 +116,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
           services: action.payload.services,
           parts: action.payload.parts,
           totalAmount: action.payload.totalAmount,
-          mechanicNotes: action.payload.mechanicNotes
+          mechanicNotes: action.payload.mechanicNotes,
+          // ====================================================================
+          // FIX: Incluir campos originales para preservarlos en Firebase
+          // ====================================================================
+          originalServices: action.payload.originalServices,
+          originalParts: action.payload.originalParts,
+          originalAmount: action.payload.originalAmount,
+          needsQuote: action.payload.needsQuote
+          // ====================================================================
       });
       // Actualiza el estado local para una respuesta visual instantánea
       return {
@@ -294,9 +302,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const workOrdersSnapshot = await getDocs(collection(db, "workorders"));
         const workOrdersData = workOrdersSnapshot.docs.map(doc => {
           const data = doc.data();
+          
+          // Convertir fechas de servicios y piezas
+          const services = (data.services || []).map((s: any) => ({
+            ...s,
+            createdAt: s.createdAt?.toDate ? s.createdAt.toDate() : new Date()
+          }));
+          
+          const parts = (data.parts || []).map((p: any) => ({
+            ...p,
+            createdAt: p.createdAt?.toDate ? p.createdAt.toDate() : new Date()
+          }));
+
+          const originalServices = (data.originalServices || []).map((s: any) => ({
+            ...s,
+            createdAt: s.createdAt?.toDate ? s.createdAt.toDate() : new Date()
+          }));
+          
+          const originalParts = (data.originalParts || []).map((p: any) => ({
+            ...p,
+            createdAt: p.createdAt?.toDate ? p.createdAt.toDate() : new Date()
+          }));
+          
           return {
             id: doc.id,
             ...data,
+            services,
+            parts,
+            originalServices,
+            originalParts,
             client: clientsData.find(c => c.id === data.clientId),
             bicycle: bicyclesData.find(b => b.id === data.bicycleId),
             estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),

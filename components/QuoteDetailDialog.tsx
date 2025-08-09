@@ -74,6 +74,9 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
     <div className="flex justify-between items-start">
       <div className="flex-1">
         <p className={`text-sm font-medium ${getItemTextColor(isNew)}`}>{service.service.name}</p>
+        <p className={`text-xs text-muted-foreground`}>
+          Agregado: {service.createdAt.toLocaleDateString()}
+        </p>
       </div>
       <div className="text-right">
         <p className={`text-sm ${getItemTextColor(isNew)}`}>
@@ -92,6 +95,9 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
     <div className="flex justify-between items-start">
       <div className="flex-1">
         <p className={`text-sm font-medium ${getItemTextColor(isNew)}`}>{part.part.name}</p>
+        <p className={`text-xs text-muted-foreground`}>
+          Agregado: {part.createdAt.toLocaleDateString()}
+        </p>
       </div>
       <div className="text-right">
         <p className={`text-sm ${getItemTextColor(isNew)}`}>

@@ -60,7 +60,8 @@ export const updateWorkOrder = async (workOrderId, workOrderData) => {
             serviceId: s.service.id,
             service: { id: s.service.id, name: s.service.name, price: s.service.price },
             quantity: s.quantity,
-            price: s.price
+            price: s.price,
+            createdAt: s.createdAt || new Date()
         }));
     }
 
@@ -70,9 +71,36 @@ export const updateWorkOrder = async (workOrderId, workOrderData) => {
             partId: p.part.id,
             part: { id: p.part.id, name: p.part.name, price: p.part.price, stock: p.part.stock },
             quantity: p.quantity,
-            price: p.price
+            price: p.price,
+            createdAt: p.createdAt || new Date()
         }));
     }
+
+    // ====================================================================
+    // FIX: Preservar originalServices, originalParts y originalAmount
+    // ====================================================================
+    if (dataToUpdate.originalServices) {
+        dataToUpdate.originalServices = dataToUpdate.originalServices.map(s => ({
+            id: s.id,
+            serviceId: s.service.id,
+            service: { id: s.service.id, name: s.service.name, price: s.service.price },
+            quantity: s.quantity,
+            price: s.price,
+            createdAt: s.createdAt || new Date()
+        }));
+    }
+
+    if (dataToUpdate.originalParts) {
+        dataToUpdate.originalParts = dataToUpdate.originalParts.map(p => ({
+            id: p.id,
+            partId: p.part.id,
+            part: { id: p.part.id, name: p.part.name, price: p.part.price, stock: p.part.stock },
+            quantity: p.quantity,
+            price: p.price,
+            createdAt: p.createdAt || new Date()
+        }));
+    }
+    // ====================================================================
 
     delete dataToUpdate.client;
     delete dataToUpdate.bicycle;
