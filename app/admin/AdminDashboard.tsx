@@ -1,4 +1,11 @@
 import React, { useState } from 'react';
+
+// Helper function para convertir fecha de input sin problemas de zona horaria
+const dateFromInput = (dateString: string): Date => {
+  if (!dateString) return new Date();
+  // Agregar 'T12:00:00' para evitar problemas de zona horaria
+  return new Date(dateString + 'T12:00:00');
+};
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -8,6 +15,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Separator } from '../../components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { useApp } from '../../contexts/AppContext';
 import { Client, Bicycle, WorkOrder, WorkOrderStatus } from '../../lib/types';
@@ -17,7 +25,7 @@ import { createClient } from '../../services/clients';
 import { createBicycle } from '../../services/bicycles';
 import { createWorkOrder } from '../../services/workOrders';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
-import { Users, Bike, FileText, Plus, Edit, CheckCircle2, Truck, BarChart3, Download, Clock, AlertTriangle, Send, DollarSign, Trash2 } from 'lucide-react';
+import { Users, Bike, FileText, Plus, Minus, Edit, CheckCircle2, Truck, BarChart3, Download, Clock, AlertTriangle, Send, DollarSign, Trash2 } from 'lucide-react';
 import QuoteDetailDialog from '../../components/QuoteDetailDialog';
 
 // --- SUB-COMPONENTES DE FORMULARIOS (Definidos fuera para estabilidad) ---
@@ -95,22 +103,116 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
     onShowAddBicycle: () => void;
 }) => {
     const { state, dispatch } = useApp();
+    const [selectedServices, setSelectedServices] = useState<any[]>([]);
+    const [selectedParts, setSelectedParts] = useState<any[]>([]);
+
+    // Reset form cuando cambie el cliente/bicicleta
+    React.useEffect(() => {
+        if (!newWorkOrder.clientId) {
+            setSelectedServices([]);
+            setSelectedParts([]);
+        }
+    }, [newWorkOrder.clientId]);
+
+    const addService = (serviceId: string) => {
+        try {
+            const serviceToAdd = state.services?.find(s => s.id === serviceId);
+            if (serviceToAdd && !selectedServices.some(s => s.serviceId === serviceId)) {
+                const newService = {
+                    id: `wos-${Date.now()}`,
+                    serviceId: serviceToAdd.id,
+                    service: serviceToAdd,
+                    quantity: 1,
+                    price: serviceToAdd.price,
+                    createdAt: new Date()
+                };
+                setSelectedServices([...selectedServices, newService]);
+            }
+        } catch (error) {
+            console.error('Error adding service:', error);
+        }
+    };
+
+    const addPart = (partId: string) => {
+        try {
+            const partToAdd = state.parts?.find(p => p.id === partId);
+            if (partToAdd && partToAdd.stock > 0 && !selectedParts.some(p => p.partId === partId)) {
+                const newPart = {
+                    id: `wop-${Date.now()}`,
+                    partId: partToAdd.id,
+                    part: partToAdd,
+                    quantity: 1,
+                    price: partToAdd.price,
+                    createdAt: new Date()
+                };
+                setSelectedParts([...selectedParts, newPart]);
+            }
+        } catch (error) {
+            console.error('Error adding part:', error);
+        }
+    };
+
+    const updateServiceQuantity = (serviceId: string, quantity: number) => {
+        setSelectedServices(selectedServices.map(s => {
+            if (s.id === serviceId) {
+                const basePrice = s.service?.price || 0;
+                return { ...s, quantity, price: basePrice * quantity };
+            }
+            return s;
+        }));
+    };
+
+    const updatePartQuantity = (partId: string, quantity: number) => {
+        setSelectedParts(selectedParts.map(p => {
+            if (p.id === partId) {
+                const basePrice = p.part?.price || 0;
+                const newQuantity = Math.max(1, quantity);
+                return { ...p, quantity: newQuantity, price: basePrice * newQuantity };
+            }
+            return p;
+        }));
+    };
+
+    const removeService = (serviceId: string) => {
+        setSelectedServices(selectedServices.filter(s => s.id !== serviceId));
+    };
+
+    const removePart = (partId: string) => {
+        setSelectedParts(selectedParts.filter(p => p.id !== partId));
+    };
+
+    const calculateTotal = () => {
+        return [...selectedServices, ...selectedParts].reduce((sum, item) => sum + item.price, 0);
+    };
+
+    const resetForm = () => {
+        setSelectedServices([]);
+        setSelectedParts([]);
+    };
+
     const handleAddWorkOrder = async () => {
         const client = state.clients.find(c => c.id === newWorkOrder.clientId);
         const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
         if (client && bicycle) {
+            const totalAmount = calculateTotal();
             const workOrderData = {
                 ...newWorkOrder,
                 status: 'open',
-                services: [],
-                parts: [],
-                totalAmount: 0,
-                estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? new Date(newWorkOrder.estimatedDeliveryDate) : null,
+                services: selectedServices,
+                parts: selectedParts,
+                totalAmount: totalAmount,
+                // Como la ficha se crea con servicios/piezas, estos son originales
+                originalServices: selectedServices,
+                originalParts: selectedParts,
+                originalAmount: totalAmount,
+                needsQuote: false,
+                estimatedDeliveryDate: newWorkOrder.estimatedDeliveryDate ? dateFromInput(newWorkOrder.estimatedDeliveryDate) : null,
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
             const createdWorkOrder = await createWorkOrder(workOrderData, client, bicycle);
             dispatch({ type: 'ADD_WORK_ORDER', payload: createdWorkOrder });
+            resetForm();
             closeModal();
         }
     };
@@ -126,6 +228,74 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
                 </div>
                 <div><Label htmlFor="description">Descripción del Problema</Label><Textarea id="description" value={newWorkOrder.description} onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})} /></div>
                 <div><Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label><Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} /></div>
+                
+                <Separator />
+                
+                {/* Sección de Servicios */}
+                <div>
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-marchant-green">Servicios Requeridos</h4>
+                        <Select onValueChange={addService}>
+                            <SelectTrigger className="w-48"><SelectValue placeholder="Agregar servicio" /></SelectTrigger>
+                            <SelectContent>{state.services?.map(service => (<SelectItem key={service.id} value={service.id}>{service.name} - ${service.price.toLocaleString()}</SelectItem>)) || []}</SelectContent>
+                        </Select>
+                    </div>
+                    {selectedServices.map(service => (
+                        <div key={service.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-green rounded mb-2 bg-marchant-green-light">
+                            <div className="flex-1">
+                                <p className="text-sm">{service.service?.name || 'Servicio no encontrado'}</p>
+                                <p className="text-xs text-muted-foreground">${(service.price / service.quantity).toLocaleString()} c/u</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => updateServiceQuantity(service.id, Math.max(1, service.quantity - 1))}><Minus className="h-3 w-3" /></Button>
+                                <span className="w-8 text-center text-sm">{service.quantity}</span>
+                                <Button variant="outline" size="sm" onClick={() => updateServiceQuantity(service.id, service.quantity + 1)}><Plus className="h-3 w-3" /></Button>
+                                <Button variant="destructive" size="sm" onClick={() => removeService(service.id)} className="bg-marchant-red hover:bg-marchant-red-dark"><Minus className="h-3 w-3" /></Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <Separator />
+
+                {/* Sección de Piezas */}
+                <div>
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-marchant-green">Piezas Requeridas</h4>
+                        <Select onValueChange={addPart}>
+                            <SelectTrigger className="w-48"><SelectValue placeholder="Agregar pieza" /></SelectTrigger>
+                            <SelectContent>{state.parts?.map(part => (
+                                <SelectItem key={part.id} value={part.id} disabled={part.stock === 0}>
+                                    {part.name} ({part.stock} disp.) - ${part.price.toLocaleString()}
+                                </SelectItem>
+                            )) || []}</SelectContent>
+                        </Select>
+                    </div>
+                    {selectedParts.map(part => (
+                        <div key={part.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-red rounded mb-2 bg-marchant-red-light">
+                            <div className="flex-1">
+                                <p className="text-sm">{part.part?.name || 'Pieza no encontrada'}</p>
+                                <p className="text-xs text-muted-foreground">${(part.price / part.quantity).toLocaleString()} c/u</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => updatePartQuantity(part.id, Math.max(1, part.quantity - 1))}><Minus className="h-3 w-3" /></Button>
+                                <span className="w-8 text-center text-sm">{part.quantity}</span>
+                                <Button variant="outline" size="sm" onClick={() => updatePartQuantity(part.id, part.quantity + 1)}><Plus className="h-3 w-3" /></Button>
+                                <Button variant="destructive" size="sm" onClick={() => removePart(part.id)} className="bg-marchant-red hover:bg-marchant-red-dark"><Minus className="h-3 w-3" /></Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {(selectedServices.length > 0 || selectedParts.length > 0) && (
+                    <div className="pt-4 bg-gray-50 p-4 -m-6 mt-4 rounded-lg">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Total Estimado:</span>
+                            <span className="text-lg font-bold text-marchant-green">${calculateTotal().toLocaleString()}</span>
+                        </div>
+                    </div>
+                )}
+
                 <Button onClick={handleAddWorkOrder} className="w-full">Crear Ficha</Button>
             </div>
         </>
@@ -504,7 +674,7 @@ const WorkOrdersTab = ({ onNewWorkOrderClick }: { onNewWorkOrderClick: () => voi
                     {editingWorkOrder && (
                         <div className="space-y-4 pt-4">
                             <div><Label>Descripción</Label><Textarea value={editingWorkOrder.description} onChange={(e) => setEditingWorkOrder({ ...editingWorkOrder, description: e.target.value })} /></div>
-                            <div><Label>Fecha Entrega Estimada</Label><Input type="date" value={editingWorkOrder.estimatedDeliveryDate ? new Date(editingWorkOrder.estimatedDeliveryDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingWorkOrder({ ...editingWorkOrder, estimatedDeliveryDate: new Date(e.target.value) })} /></div>
+                            <div><Label>Fecha Entrega Estimada</Label><Input type="date" value={editingWorkOrder.estimatedDeliveryDate ? new Date(editingWorkOrder.estimatedDeliveryDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingWorkOrder({ ...editingWorkOrder, estimatedDeliveryDate: dateFromInput(e.target.value) })} /></div>
                             <Button onClick={handleUpdateWorkOrder} className="w-full">Guardar Cambios</Button>
                         </div>
                     )}
