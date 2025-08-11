@@ -773,16 +773,314 @@ const WorkOrdersTab = ({ onNewWorkOrderClick }: { onNewWorkOrderClick: () => voi
     );
 };
 
-const DataTab = () => (
-    <div className="space-y-6">
-        <Card><CardHeader><CardTitle>Análisis y Reportes</CardTitle><CardDescription>Filtra y exporta el historial de fichas de trabajo.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center gap-4"><div className="grid gap-2"><Label htmlFor="start-date">Fecha de Inicio</Label><Input id="start-date" type="date" /></div><div className="grid gap-2"><Label htmlFor="end-date">Fecha de Fin</Label><Input id="end-date" type="date" /></div><Button className="self-end">Filtrar</Button><Button variant="outline" className="self-end ml-auto"><Download className="h-4 w-4 mr-2" />Descargar Excel</Button></div></CardContent></Card>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card><CardHeader><CardTitle>Gráfico 1 (Próximamente)</CardTitle></CardHeader><CardContent className="h-60 bg-slate-50 flex items-center justify-center rounded-lg"><p className="text-muted-foreground">Datos del Backend</p></CardContent></Card>
-            <Card><CardHeader><CardTitle>Gráfico 2 (Próximamente)</CardTitle></CardHeader><CardContent className="h-60 bg-slate-50 flex items-center justify-center rounded-lg"><p className="text-muted-foreground">Datos del Backend</p></CardContent></Card>
+const DataTab = () => {
+    const { state } = useApp();
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>([]);
+
+    // Función para filtrar fichas entregadas por rango de fechas
+    const filterWorkOrders = () => {
+        if (!startDate || !endDate) {
+            setFilteredWorkOrders([]);
+            return;
+        }
+
+        const start = dateFromInput(startDate);
+        const end = dateFromInput(endDate);
+        end.setHours(23, 59, 59, 999); // Incluir todo el día final
+
+        const delivered = state.workOrders.filter(workOrder => {
+            if (workOrder.status !== 'completed' || !workOrder.deliveredAt) {
+                return false;
+            }
+            
+            // Si deliveredAt es un Timestamp, convertirlo a Date
+            let deliveryDate = workOrder.deliveredAt;
+            if (deliveryDate && typeof deliveryDate.toDate === 'function') {
+                deliveryDate = deliveryDate.toDate();
+            }
+            
+            return deliveryDate >= start && deliveryDate <= end;
+        });
+
+        // Ordenar por fecha de entrega descendente
+        delivered.sort((a, b) => {
+            if (!a.deliveredAt || !b.deliveredAt) return 0;
+            
+            // Convertir Timestamps a Date si es necesario
+            const dateA = typeof a.deliveredAt.toDate === 'function' ? a.deliveredAt.toDate() : a.deliveredAt;
+            const dateB = typeof b.deliveredAt.toDate === 'function' ? b.deliveredAt.toDate() : b.deliveredAt;
+            
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        setFilteredWorkOrders(delivered);
+    };
+
+    // Calcular utilidad de una ficha
+    const calculateProfit = (workOrder: WorkOrder) => {
+        let totalCost = 0;
+        let totalRevenue = workOrder.totalAmount;
+
+        // Calcular costos de las piezas
+        workOrder.parts.forEach(partItem => {
+            let costPrice = 0;
+            
+            // Intentar obtener costPrice de la estructura anidada
+            if (partItem.part?.costPrice) {
+                costPrice = partItem.part.costPrice;
+            } else {
+                // Buscar la pieza en el estado global para obtener el costPrice
+                const fullPart = state.parts.find(p => p.id === partItem.partId);
+                costPrice = fullPart?.costPrice || 0;
+            }
+            
+            totalCost += costPrice * partItem.quantity;
+        });
+
+        return totalRevenue - totalCost;
+    };
+
+    // Función para exportar a Excel
+    const exportToExcel = () => {
+        if (filteredWorkOrders.length === 0) {
+            alert('No hay datos para exportar. Primero filtra las fichas.');
+            return;
+        }
+
+        // Preparar datos para Excel
+        const excelData = filteredWorkOrders.map(workOrder => {
+            const mechanicName = workOrder.mechanic?.name || 'No asignado';
+            const clientName = workOrder.client?.name || 'Cliente no encontrado';
+            const bicycleInfo = workOrder.bicycle ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}` : 'Bicicleta no encontrada';
+            
+            // Calcular tiempo de trabajo en horas manejando Timestamps
+            let workTime = 0;
+            if (workOrder.startedAt && workOrder.completedAt) {
+                const startDate = typeof workOrder.startedAt.toDate === 'function' 
+                    ? workOrder.startedAt.toDate() 
+                    : workOrder.startedAt;
+                const endDate = typeof workOrder.completedAt.toDate === 'function' 
+                    ? workOrder.completedAt.toDate() 
+                    : workOrder.completedAt;
+                workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 24) / 24;
+            }
+
+            // Listar servicios y piezas
+            const services = workOrder.services.map(s => `${s.service?.name || 'Servicio desconocido'} (x${s.quantity})`).join(', ');
+            const parts = workOrder.parts.map(p => `${p.part?.name || 'Pieza desconocida'} (x${p.quantity})`).join(', ');
+
+            // Convertir deliveredAt si es Timestamp
+            const deliveryDate = workOrder.deliveredAt && typeof workOrder.deliveredAt.toDate === 'function'
+                ? workOrder.deliveredAt.toDate()
+                : workOrder.deliveredAt;
+            
+            return {
+                'Fecha Entrega': deliveryDate ? deliveryDate.toLocaleDateString() : '',
+                'Cliente': clientName,
+                'Bicicleta': bicycleInfo,
+                'Mecánico': mechanicName,
+                'Servicios': services || 'Ninguno',
+                'Piezas': parts || 'Ninguna',
+                'Tiempo Trabajo (días)': workTime,
+                'Total Facturado': workOrder.totalAmount,
+                'Utilidad Estimada': calculateProfit(workOrder),
+                'Descripción': workOrder.description,
+                'Estado': workOrder.status
+            };
+        });
+
+        // Convertir a CSV (simulación de Excel)
+        const headers = Object.keys(excelData[0]).join(',');
+        const csvContent = [headers, ...excelData.map(row => Object.values(row).join(','))].join('\n');
+        
+        // Descargar archivo
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `historial_fichas_${startDate}_a_${endDate}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Análisis y Reportes</CardTitle>
+                    <CardDescription>Filtra y exporta el historial de fichas de trabajo entregadas.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="start-date">Fecha de Inicio</Label>
+                            <Input 
+                                id="start-date" 
+                                type="date" 
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="end-date">Fecha de Fin</Label>
+                            <Input 
+                                id="end-date" 
+                                type="date" 
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+                        <Button className="self-end" onClick={filterWorkOrders}>
+                            Filtrar
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {filteredWorkOrders.length > 0 && (
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle>Historial Detallado de Fichas</CardTitle>
+                            <CardDescription>
+                                {filteredWorkOrders.length} fichas entregadas entre {startDate} y {endDate}
+                            </CardDescription>
+                        </div>
+                        <Button variant="outline" onClick={exportToExcel}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Descargar Excel
+                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Fecha Entrega</TableHead>
+                                        <TableHead>Cliente</TableHead>
+                                        <TableHead>Bicicleta</TableHead>
+                                        <TableHead>Mecánico</TableHead>
+                                        <TableHead>Servicios</TableHead>
+                                        <TableHead>Piezas</TableHead>
+                                        <TableHead>Tiempo</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                        <TableHead className="text-right">Utilidad</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredWorkOrders.map(workOrder => {
+                                        const mechanicName = workOrder.mechanic?.name || 'No asignado';
+                                        const clientName = workOrder.client?.name || 'Cliente no encontrado';
+                                        const bicycleInfo = workOrder.bicycle 
+                                            ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}`
+                                            : 'Bicicleta no encontrada';
+                                        
+                                        // Calcular tiempo de trabajo manejando Timestamps
+                                        let workTime = 0;
+                                        if (workOrder.startedAt && workOrder.completedAt) {
+                                            const startDate = typeof workOrder.startedAt.toDate === 'function' 
+                                                ? workOrder.startedAt.toDate() 
+                                                : workOrder.startedAt;
+                                            const endDate = typeof workOrder.completedAt.toDate === 'function' 
+                                                ? workOrder.completedAt.toDate() 
+                                                : workOrder.completedAt;
+                                            workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 24) / 24;
+                                        }
+
+                                        const profit = calculateProfit(workOrder);
+                                        
+                                        return (
+                                            <TableRow key={workOrder.id}>
+                                                <TableCell>
+                                                    {workOrder.deliveredAt ? (
+                                                        typeof workOrder.deliveredAt.toDate === 'function' 
+                                                            ? workOrder.deliveredAt.toDate().toLocaleDateString()
+                                                            : workOrder.deliveredAt.toLocaleDateString()
+                                                    ) : '-'}
+                                                </TableCell>
+                                                <TableCell>{clientName}</TableCell>
+                                                <TableCell>{bicycleInfo}</TableCell>
+                                                <TableCell>{mechanicName}</TableCell>
+                                                <TableCell>
+                                                    {workOrder.services.length > 0 
+                                                        ? workOrder.services.map(s => `${s.service?.name || 'Servicio desconocido'} (${s.quantity})`).join(', ')
+                                                        : 'Ninguno'
+                                                    }
+                                                </TableCell>
+                                                <TableCell>
+                                                    {workOrder.parts.length > 0 
+                                                        ? workOrder.parts.map(p => `${p.part?.name || 'Pieza desconocida'} (${p.quantity})`).join(', ')
+                                                        : 'Ninguna'
+                                                    }
+                                                </TableCell>
+                                                <TableCell>{workTime} días</TableCell>
+                                                <TableCell className="text-right font-semibold">
+                                                    ${workOrder.totalAmount.toLocaleString()}
+                                                </TableCell>
+                                                <TableCell className={`text-right font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    ${profit.toLocaleString()}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {startDate && endDate && filteredWorkOrders.length === 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Historial Detallado de Fichas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-center text-muted-foreground py-8">
+                            No se encontraron fichas entregadas en el rango de fechas seleccionado.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {!startDate || !endDate ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Historial Detallado de Fichas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-center text-muted-foreground py-8">
+                            Selecciona un rango de fechas para ver el historial detallado.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : null}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Gráfico 1 (Próximamente)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-60 bg-slate-50 flex items-center justify-center rounded-lg">
+                        <p className="text-muted-foreground">Datos del Backend</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Gráfico 2 (Próximamente)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-60 bg-slate-50 flex items-center justify-center rounded-lg">
+                        <p className="text-muted-foreground">Datos del Backend</p>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
-        <Card><CardHeader><CardTitle>Historial Detallado de Fichas</CardTitle></CardHeader><CardContent><p className="text-center text-muted-foreground py-8">La tabla con el detalle de servicios, piezas y totales aparecerá aquí una vez conectado el backend.</p></CardContent></Card>
-    </div>
-);
+    );
+};
 
 // --- COMPONENTE PRINCIPAL ---
 
