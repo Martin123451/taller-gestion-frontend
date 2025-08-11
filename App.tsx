@@ -1,13 +1,22 @@
 import React from 'react';
-import { AppProvider, useAuth } from './contexts/AppContext';
+import { AppProvider } from './contexts/AppContext';
+import { AuthProvider, useAuthContext } from './contexts/AuthContext';
 import AuthLogin from './app/auth/AuthLogin';
 import Layout from './components/Layout';
 import { Toaster } from './components/ui/sonner';
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { currentUser, loading } = useAuthContext();
 
-  if (!isAuthenticated) {
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div>Cargando...</div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
     return <AuthLogin />;
   }
 
@@ -16,11 +25,13 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <div className="min-h-screen bg-background">
-        <AppContent />
-        <Toaster />
-      </div>
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <div className="min-h-screen bg-background">
+          <AppContent />
+          <Toaster />
+        </div>
+      </AppProvider>
+    </AuthProvider>
   );
 }
