@@ -40,7 +40,9 @@ type AppAction =
   | { type: 'SET_WORK_ORDERS'; payload: WorkOrder[] }
   | { type: 'START_WORK_ORDER'; payload: { workOrderId: string; mechanicId: string } }
   | { type: 'COMPLETE_WORK_ORDER'; payload: string }
-  | { type: 'UPDATE_PART'; payload: PartItem };
+  | { type: 'UPDATE_PART'; payload: PartItem }
+  | { type: 'SEND_QUOTE'; payload: { workOrderId: string } }
+  | { type: 'RESPOND_TO_QUOTE'; payload: { workOrderId: string; response: 'approved' | 'rejected' | 'partial_reject'; notes?: string; rejectedItems?: { services: string[]; parts: string[]; } } };
 
 const initialState: AppState = {
   currentUser: null,
@@ -163,6 +165,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     
     case 'DELIVER_WORK_ORDER':
+      // Actualizar en Firebase
+      updateWorkOrder(action.payload, {
+        status: 'completed',
+        deliveredAt: new Date()
+      });
+      
       return {
         ...state,
         workOrders: state.workOrders.map(wo => 
@@ -240,6 +248,95 @@ function appReducer(state: AppState, action: AppAction): AppState {
     return {
       ...state,
       parts: state.parts.filter(p => p.id !== action.payload)
+    };
+
+  case 'SEND_QUOTE':
+    // Actualiza el estado de la cotización a 'sent'
+    const currentWorkOrder = state.workOrders.find(wo => wo.id === action.payload.workOrderId);
+    updateWorkOrder(action.payload.workOrderId, {
+      quote: {
+        ...currentWorkOrder?.quote,
+        status: 'sent',
+        sentAt: new Date()
+      }
+    });
+    return {
+      ...state,
+      workOrders: state.workOrders.map(wo => 
+        wo.id === action.payload.workOrderId 
+          ? { 
+              ...wo, 
+              quote: {
+                ...wo.quote,
+                status: 'sent',
+                sentAt: new Date()
+              }
+            }
+          : wo
+      )
+    };
+
+  case 'RESPOND_TO_QUOTE':
+    const workOrder = state.workOrders.find(wo => wo.id === action.payload.workOrderId);
+    if (!workOrder) return state;
+
+    let newTotalAmount = workOrder.totalAmount;
+    let updatedServices = workOrder.services;
+    let updatedParts = workOrder.parts;
+
+    // Si es rechazo total, volver al monto original pero mantener items para mostrar como rechazados
+    if (action.payload.response === 'rejected') {
+      newTotalAmount = workOrder.originalAmount || 0;
+      // No eliminamos los items, solo ajustamos el total
+    } 
+    // Si es rechazo parcial, calcular el total solo con items aprobados
+    else if (action.payload.response === 'partial_reject' && action.payload.rejectedItems) {
+      const rejectedServiceIds = action.payload.rejectedItems.services || [];
+      const rejectedPartIds = action.payload.rejectedItems.parts || [];
+      
+      // Calcular total solo con items aprobados (no rechazados)
+      const approvedServices = workOrder.services.filter(s => !rejectedServiceIds.includes(s.id));
+      const approvedParts = workOrder.parts.filter(p => !rejectedPartIds.includes(p.id));
+      
+      const servicesTotal = approvedServices.reduce((sum, s) => sum + s.price, 0);
+      const partsTotal = approvedParts.reduce((sum, p) => sum + p.price, 0);
+      newTotalAmount = servicesTotal + partsTotal;
+      
+      // Mantenemos todos los items pero guardamos cuáles fueron rechazados
+    }
+
+    // Actualizar en Firebase
+    const currentQuote = workOrder.quote || {};
+    const quoteUpdate = {
+      ...currentQuote,
+      status: action.payload.response,
+      respondedAt: new Date(),
+      clientResponse: action.payload.notes
+    };
+
+    // Solo agregar rejectedItems si no es undefined
+    if (action.payload.rejectedItems !== undefined) {
+      quoteUpdate.rejectedItems = action.payload.rejectedItems;
+    }
+
+    const updateData = {
+      totalAmount: newTotalAmount,
+      quote: quoteUpdate
+    };
+    
+    updateWorkOrder(action.payload.workOrderId, updateData);
+
+    return {
+      ...state,
+      workOrders: state.workOrders.map(wo => 
+        wo.id === action.payload.workOrderId 
+          ? { 
+              ...wo, 
+              totalAmount: newTotalAmount,
+              quote: quoteUpdate
+            }
+          : wo
+      )
     };
     
     default:
@@ -325,6 +422,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             createdAt: p.createdAt?.toDate ? p.createdAt.toDate() : new Date()
           }));
           
+          // Convertir fechas del quote si existe
+          const quote = data.quote ? {
+            ...data.quote,
+            sentAt: data.quote.sentAt?.toDate ? data.quote.sentAt.toDate() : data.quote.sentAt,
+            respondedAt: data.quote.respondedAt?.toDate ? data.quote.respondedAt.toDate() : data.quote.respondedAt
+          } : undefined;
+
           return {
             id: doc.id,
             ...data,
@@ -332,6 +436,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             parts,
             originalServices,
             originalParts,
+            quote,
             client: clientsData.find(c => c.id === data.clientId),
             bicycle: bicyclesData.find(b => b.id === data.bicycleId),
             estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),

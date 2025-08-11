@@ -46,7 +46,7 @@ export default function EditItemDialog({ item, onSave, itemType }: EditItemDialo
           </div>
           <div>
             <Label htmlFor="price">Precio</Label>
-            <Input id="price" type="number" value={formData.price} onChange={handleChange} />
+            <Input id="price" type="number" value={formData.price} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
           </div>
 
           {/* --- ESTA ES LA CORRECCIÓN CLAVE --- */}
@@ -54,7 +54,7 @@ export default function EditItemDialog({ item, onSave, itemType }: EditItemDialo
             <>
               <div>
                 <Label htmlFor="stock">Stock</Label>
-                <Input id="stock" type="number" value={(formData as PartItem).stock} onChange={handleChange} />
+                <Input id="stock" type="number" value={(formData as PartItem).stock} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
               </div>
               <div>
                 <Label htmlFor="brand">Marca</Label>

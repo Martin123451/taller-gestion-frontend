@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
 import { DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Play, CheckCircle2, Plus, Minus } from 'lucide-react';
+import { Badge } from './ui/badge';
+import { Play, CheckCircle2, Plus, Minus, AlertTriangle, XCircle, Clock } from 'lucide-react';
 
 interface WorkOrderDetailProps {
   workOrder: WorkOrder;
@@ -196,6 +197,63 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
 
     const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
 
+    // Lógica para determinar el estado de la cotización y qué trabajos realizar
+    const hasQuotePending = workOrder.needsQuote && (!workOrder.quote || workOrder.quote.status === 'pending' || workOrder.quote.status === 'sent');
+    const canComplete = !hasQuotePending;
+    
+    const getQuoteStatus = () => {
+      if (!workOrder.needsQuote) return null;
+      if (!workOrder.quote) return 'pending';
+      return workOrder.quote.status;
+    };
+
+    const isItemRejected = (itemId: string, itemType: 'service' | 'part') => {
+      if (!workOrder.quote?.rejectedItems) return false;
+      const rejectedIds = itemType === 'service' 
+        ? workOrder.quote.rejectedItems.services || []
+        : workOrder.quote.rejectedItems.parts || [];
+      return rejectedIds.includes(itemId);
+    };
+
+    const getItemStatus = (itemId: string, itemType: 'service' | 'part') => {
+      const quoteStatus = getQuoteStatus();
+      if (!quoteStatus || quoteStatus === 'pending' || quoteStatus === 'sent') {
+        return 'pending';
+      }
+      if (quoteStatus === 'approved') return 'approved';
+      if (quoteStatus === 'rejected') return 'rejected';
+      if (quoteStatus === 'partial_reject') {
+        return isItemRejected(itemId, itemType) ? 'rejected' : 'approved';
+      }
+      return 'pending';
+    };
+
+    const isOriginalItem = (itemId: string, itemType: 'service' | 'part') => {
+      const originalItems = itemType === 'service' 
+        ? (workOrder.originalServices || [])
+        : (workOrder.originalParts || []);
+      return originalItems.some(item => item.id === itemId);
+    };
+
+    const getItemBadge = (itemId: string, itemType: 'service' | 'part') => {
+      const isOriginal = isOriginalItem(itemId, itemType);
+      if (isOriginal) {
+        return <Badge variant="outline" className="text-xs bg-gray-100">ORIGINAL</Badge>;
+      }
+      
+      const status = getItemStatus(itemId, itemType);
+      switch (status) {
+        case 'approved':
+          return <Badge variant="outline" className="text-xs bg-green-100 text-green-700">HACER</Badge>;
+        case 'rejected':
+          return <Badge variant="destructive" className="text-xs bg-red-100 text-red-700">NO HACER</Badge>;
+        case 'pending':
+          return <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700">PENDIENTE</Badge>;
+        default:
+          return null;
+      }
+    };
+
     return (
       <>
         <DialogHeader>
@@ -204,6 +262,28 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             {workOrder.client?.name || 'Cliente no asignado'} - {workOrder.bicycle?.brand || 'Marca no especificada'} {workOrder.bicycle?.model || ''}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Estado de la cotización */}
+        {workOrder.needsQuote && (
+          <div className="p-4 border rounded-lg bg-blue-50 border-blue-200 mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              {getQuoteStatus() === 'pending' && <Clock className="h-4 w-4 text-yellow-600" />}
+              {getQuoteStatus() === 'sent' && <Clock className="h-4 w-4 text-blue-600" />}
+              {getQuoteStatus() === 'approved' && <CheckCircle2 className="h-4 w-4 text-green-600" />}
+              {getQuoteStatus() === 'rejected' && <XCircle className="h-4 w-4 text-red-600" />}
+              {getQuoteStatus() === 'partial_reject' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
+              <h4 className="font-medium">Estado de Cotización</h4>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {getQuoteStatus() === 'pending' && 'Cotización pendiente - esperando respuesta del administrador'}
+              {getQuoteStatus() === 'sent' && 'Cotización enviada al cliente - esperando respuesta'}
+              {getQuoteStatus() === 'approved' && 'Cotización aprobada - realizar todos los trabajos adicionales'}
+              {getQuoteStatus() === 'rejected' && 'Cotización rechazada - solo realizar trabajo original'}
+              {getQuoteStatus() === 'partial_reject' && 'Rechazo parcial - revisar qué trabajos realizar'}
+            </p>
+          </div>
+        )}
+
         <div className="space-y-4 pt-4">
           <div className="p-4 bg-marchant-green-light rounded-lg">
             <h4 className="text-marchant-green">Descripción del Problema</h4>
@@ -221,7 +301,10 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             {services.map(service => (
               <div key={service.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-green rounded mb-2 bg-marchant-green-light">
                 <div className="flex-1">
-                  <p className="text-sm">{service.service?.name || 'Servicio no encontrado'}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm">{service.service?.name || 'Servicio no encontrado'}</p>
+                    {getItemBadge(service.id, 'service')}
+                  </div>
                   <p className="text-xs text-muted-foreground">${(service.price / service.quantity).toLocaleString()} c/u</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -253,7 +336,10 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             {parts.map(part => (
               <div key={part.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-red rounded mb-2 bg-marchant-red-light">
                 <div className="flex-1">
-                  <p className="text-sm">{part.part?.name || 'Pieza no encontrada'}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm">{part.part?.name || 'Pieza no encontrada'}</p>
+                    {getItemBadge(part.id, 'part')}
+                  </div>
                   <p className="text-xs text-muted-foreground">${(part.price / part.quantity).toLocaleString()} c/u</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -277,7 +363,20 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             <div className="flex gap-2">
               <Button variant="outline" onClick={saveChanges} className="border-marchant-green text-marchant-green hover:bg-marchant-green-light">Guardar Cambios</Button>
               {workOrder.status === 'open' && (<Button onClick={() => dispatch({ type: 'START_WORK_ORDER', payload: { workOrderId: workOrder.id, mechanicId: currentUser!.id } })} className="bg-marchant-green hover:bg-marchant-green-dark"><Play className="h-4 w-4 mr-2" />Iniciar Trabajo</Button>)}
-              {workOrder.status === 'in_progress' && (<Button onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} className="bg-marchant-red hover:bg-marchant-red-dark"><CheckCircle2 className="h-4 w-4 mr-2" />Completar</Button>)}
+              {workOrder.status === 'in_progress' && (
+                <Button 
+                  onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} 
+                  disabled={!canComplete}
+                  className={`${canComplete 
+                    ? 'bg-marchant-red hover:bg-marchant-red-dark' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={!canComplete ? 'No se puede completar hasta que la cotización sea respondida' : ''}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Completar
+                </Button>
+              )}
             </div>
           </div>
         </div>

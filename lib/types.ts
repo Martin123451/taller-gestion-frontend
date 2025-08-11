@@ -98,10 +98,14 @@ export interface WorkOrder {
   originalParts?: WorkOrderPart[];
   originalAmount?: number;
   quote?: {
-    status: 'pending' | 'sent' | 'approved' | 'rejected';
+    status: 'pending' | 'sent' | 'approved' | 'rejected' | 'partial_reject';
     sentAt?: Date;
     respondedAt?: Date;
     clientResponse?: string;
+    rejectedItems?: {
+      services: string[];
+      parts: string[];
+    };
   };
 }
 

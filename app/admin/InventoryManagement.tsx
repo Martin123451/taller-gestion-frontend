@@ -29,13 +29,13 @@ const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType:
         </div>
         <div>
             <Label htmlFor="price">Precio</Label>
-            <Input id="price" type="number" value={formData.price} onChange={handleChange} />
+            <Input id="price" type="number" value={formData.price} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
         </div>
         {itemType === 'part' && (
             <>
             <div>
                 <Label htmlFor="stock">Stock</Label>
-                <Input id="stock" type="number" value={(formData as PartItem).stock} onChange={handleChange} />
+                <Input id="stock" type="number" value={(formData as PartItem).stock} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
             </div>
             <div>
                 <Label htmlFor="brand">Marca</Label>

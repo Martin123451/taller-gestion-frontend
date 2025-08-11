@@ -19,8 +19,17 @@ export default function KanbanBoard() {
   // Filtramos las fichas que no están completadas
   const workOrders = state.workOrders.filter(wo => wo.status !== 'completed');
   
-  // Función para obtener las fichas por estado
-  const getWorkOrdersByStatus = (status: WorkOrderStatus) => workOrders.filter(wo => wo.status === status);
+  // Función para obtener las fichas por estado y ordenarlas por fecha estimada de entrega
+  const getWorkOrdersByStatus = (status: WorkOrderStatus) => {
+    return workOrders
+      .filter(wo => wo.status === status)
+      .sort((a, b) => {
+        // Ordenar por fecha estimada de entrega (más próxima primero)
+        const dateA = a.estimatedDeliveryDate ? new Date(a.estimatedDeliveryDate).getTime() : Infinity;
+        const dateB = b.estimatedDeliveryDate ? new Date(b.estimatedDeliveryDate).getTime() : Infinity;
+        return dateA - dateB;
+      });
+  };
   
   return (
     <div className="p-4 h-full">
