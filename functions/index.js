@@ -75,7 +75,33 @@ exports.deleteUser = functions.https.onRequest((req, res) => {
         data: {message: "Usuario eliminado correctamente"},
       });
     } catch (error) {
+      // ESTE BLOQUE ESTABA INCORRECTO Y AHORA ESTÁ ARREGLADO
       console.error("Error en deleteUser:", error);
+      const status = (error.httpErrorCode && error.httpErrorCode.status) || 500;
+      res.status(status).send({error: {message: error.message}});
+    }
+  });
+});
+
+exports.updateUserPassword = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      await verifyAdmin(req);
+
+      const {uid, password} = req.body.data;
+      if (!uid || !password) {
+        throw new functions.https.HttpsError(
+            "invalid-argument", "Se requiere UID y nueva contraseña.",
+        );
+      }
+
+      await admin.auth().updateUser(uid, {password: password});
+
+      res.status(200).send({
+        data: {message: "Contraseña actualizada correctamente"},
+      });
+    } catch (error) {
+      console.error("Error en updateUserPassword:", error);
       const status = (error.httpErrorCode && error.httpErrorCode.status) || 500;
       res.status(status).send({error: {message: error.message}});
     }

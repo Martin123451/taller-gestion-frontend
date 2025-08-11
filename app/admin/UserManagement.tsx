@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { useApp } from '../../contexts/AppContext';
 import { User } from '../../lib/types';
-import { createUser, updateUser, deleteUser, getUsers } from '../../services/users';
+import { createUser, updateUser, deleteUser, getUsers, updateUserPassword } from '../../services/users';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
 
@@ -39,15 +39,24 @@ export default function UserManagement() {
 
   const handleSaveUser = async () => {
     try {
+      // Lógica de actualización de datos del usuario
       if (editingUser) {
         await updateUser(editingUser.id, { name: formData.name, email: formData.email, role: formData.role });
+
+        // --- NUEVA LÓGICA PARA CAMBIAR CONTRASEÑA ---
+        if (formData.password) {
+          await updateUserPassword(editingUser.id, formData.password);
+        }
+        // ---------------------------------------------
       } else {
+        // Lógica de creación de usuario (se mantiene igual)
         if (!formData.password) {
           alert("La contraseña es obligatoria para nuevos usuarios.");
           return;
         }
         await createUser(formData);
       }
+
       const users = await getUsers();
       dispatch({ type: 'SET_USERS', payload: users });
       setIsDialogOpen(false);
