@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 
 // Helper function para convertir fecha de input sin problemas de zona horaria
 const dateFromInput = (dateString: string): Date => {
-  if (!dateString) return new Date();
-  // Agregar 'T12:00:00' para evitar problemas de zona horaria
-  return new Date(dateString + 'T12:00:00');
+    if (!dateString) return new Date();
+    // Agregar 'T12:00:00' para evitar problemas de zona horaria
+    return new Date(dateString + 'T12:00:00');
 };
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -40,7 +40,7 @@ const NewClientForm = ({ closeModal, onClientCreated }: { closeModal: () => void
         onClientCreated(createdClient);
         closeModal();
     };
-    
+
     return (
         <>
             <DialogHeader>
@@ -61,7 +61,7 @@ const NewClientForm = ({ closeModal, onClientCreated }: { closeModal: () => void
 const NewBicycleForm = ({ closeModal, selectedClientId, onBicycleCreated }: { closeModal: () => void, selectedClientId: string, onBicycleCreated: (newBicycle: Bicycle) => void }) => {
     const { state, dispatch } = useApp();
     const [newBicycle, setNewBicycle] = useState({ clientId: selectedClientId || '', brand: '', model: '', type: 'mountain' as const, color: '', serialNumber: '', year: new Date().getFullYear(), notes: '' });
-    
+
     const handleAddBicycle = async () => {
         const bicycleData = { ...newBicycle, createdAt: new Date(), updatedAt: new Date() };
         const createdBicycle = await createBicycle(bicycleData);
@@ -69,7 +69,7 @@ const NewBicycleForm = ({ closeModal, selectedClientId, onBicycleCreated }: { cl
         onBicycleCreated(createdBicycle);
         closeModal();
     };
-    
+
     return (
         <>
             <DialogHeader><DialogTitle>Agregar Nueva Bicicleta</DialogTitle><DialogDescription>Registra una nueva bicicleta en el sistema</DialogDescription></DialogHeader>
@@ -231,11 +231,11 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
                     <div className="flex-grow"><Label htmlFor="bicycleId">Bicicleta</Label><Select value={newWorkOrder.bicycleId} onValueChange={(value) => setNewWorkOrder({ ...newWorkOrder, bicycleId: value })} disabled={!newWorkOrder.clientId}><SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger><SelectContent>{availableBicycles.map(bicycle => (<SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>))}</SelectContent></Select></div>
                     <Button variant="outline" size="icon" onClick={onShowAddBicycle} disabled={!newWorkOrder.clientId}><Plus className="h-4 w-4" /></Button>
                 </div>
-                <div><Label htmlFor="description">Descripción del Problema</Label><Textarea id="description" value={newWorkOrder.description} onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})} /></div>
-                <div><Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label><Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDeliveryDate: e.target.value})} /></div>
-                
+                <div><Label htmlFor="description">Descripción del Problema</Label><Textarea id="description" value={newWorkOrder.description} onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })} /></div>
+                <div><Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label><Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({ ...newWorkOrder, estimatedDeliveryDate: e.target.value })} /></div>
+
                 <Separator />
-                
+
                 {/* Sección de Servicios */}
                 <div>
                     <div className="flex justify-between items-center mb-3">
@@ -332,11 +332,11 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
 
 const translateStatus = (status: WorkOrderStatus) => {
     switch (status) {
-      case 'open': return 'Abierta';
-      case 'in_progress': return 'En Progreso';
-      case 'ready_for_delivery': return 'Lista para Entrega';
-      case 'completed': return 'Finalizada';
-      default: return status.replace(/_/g, ' ');
+        case 'open': return 'Abierta';
+        case 'in_progress': return 'En Progreso';
+        case 'ready_for_delivery': return 'Lista para Entrega';
+        case 'completed': return 'Finalizada';
+        default: return status.replace(/_/g, ' ');
     }
 };
 
@@ -348,7 +348,7 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
     const inProgressWorkOrders = state.workOrders.filter(wo => wo.status === 'in_progress');
     const readyForDelivery = state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length;
     const workOrdersNeedingQuotes = inProgressWorkOrders.filter(wo => wo.needsQuote && !wo.quote);
-    
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -371,7 +371,7 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                     </CardContent>
                 </Card>
             )}
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -409,56 +409,56 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                        <DollarSign className="h-5 w-5 text-marchant-green" />
-                        Fichas en Progreso
+                            <DollarSign className="h-5 w-5 text-marchant-green" />
+                            Fichas en Progreso
                         </CardTitle>
                         <CardDescription>Gestión de cotizaciones y trabajo adicional</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
-                        {inProgressWorkOrders.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">
-                            No hay fichas en progreso
-                            </p>
-                        ) : (
-                            inProgressWorkOrders.map(workOrder => (
-                            <div
-                                key={workOrder.id}
-                                className="cursor-pointer border rounded-lg p-3 hover:shadow-md transition-shadow"
-                                onClick={() => onSelectWorkOrderForQuote(workOrder)}
-                            >
-                                <div className="flex items-start justify-between mb-2">
-                                <div className="space-y-1">
-                                    <p className="text-sm text-marchant-green">{workOrder.client.name}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                    {workOrder.bicycle.brand} {workOrder.bicycle.model}
-                                    </p>
-                                </div>
-                                <div className="flex flex-col items-end gap-1">
-                                    {workOrder.needsQuote && !workOrder.quote && (
-                                        <Badge variant="outline" className="bg-yellow-50 border-yellow-300 text-yellow-700"><AlertTriangle className="h-3 w-3 mr-1" />Necesita Cotización</Badge>
-                                    )}
-                                    {workOrder.quote?.status === 'sent' && (
-                                        <Badge variant="outline" className="bg-blue-50 border-blue-300 text-blue-700"><Send className="h-3 w-3 mr-1" />Cotización Enviada</Badge>
-                                    )}
-                                    {workOrder.quote?.status === 'approved' && (
-                                        <Badge className="bg-marchant-green text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Aprobada</Badge>
-                                    )}
-                                    {workOrder.quote?.status === 'rejected' && (
-                                        <Badge className="bg-marchant-red text-white">Rechazada</Badge>
-                                    )}
+                            {inProgressWorkOrders.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-4">
+                                    No hay fichas en progreso
+                                </p>
+                            ) : (
+                                inProgressWorkOrders.map(workOrder => (
+                                    <div
+                                        key={workOrder.id}
+                                        className="cursor-pointer border rounded-lg p-3 hover:shadow-md transition-shadow"
+                                        onClick={() => onSelectWorkOrderForQuote(workOrder)}
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="space-y-1">
+                                                <p className="text-sm text-marchant-green">{workOrder.client.name}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {workOrder.bicycle.brand} {workOrder.bicycle.model}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                {workOrder.needsQuote && !workOrder.quote && (
+                                                    <Badge variant="outline" className="bg-yellow-50 border-yellow-300 text-yellow-700"><AlertTriangle className="h-3 w-3 mr-1" />Necesita Cotización</Badge>
+                                                )}
+                                                {workOrder.quote?.status === 'sent' && (
+                                                    <Badge variant="outline" className="bg-blue-50 border-blue-300 text-blue-700"><Send className="h-3 w-3 mr-1" />Cotización Enviada</Badge>
+                                                )}
+                                                {workOrder.quote?.status === 'approved' && (
+                                                    <Badge className="bg-marchant-green text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Aprobada</Badge>
+                                                )}
+                                                {workOrder.quote?.status === 'rejected' && (
+                                                    <Badge className="bg-marchant-red text-white">Rechazada</Badge>
+                                                )}
                                     {workOrder.quote?.status === 'partial_reject' && (
                                         <Badge className="bg-orange-500 text-white">Rechazo Parcial</Badge>
                                     )}
-                                </div>
-                                </div>
-                                <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t">
-                                <span>#{workOrder.id.slice(-6)}</span>
-                                <div className="text-right space-y-1">
-                                    <p>Total: ${workOrder.totalAmount.toLocaleString()}</p>
-                                    {workOrder.originalAmount && workOrder.originalAmount !== workOrder.totalAmount && (
-                                            <p className="text-yellow-600">(+${(workOrder.totalAmount - workOrder.originalAmount).toLocaleString()})</p>
-                                    )}
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t">
+                                            <span>#{workOrder.id.slice(-6)}</span>
+                                            <div className="text-right space-y-1">
+                                                <p>Total: ${workOrder.totalAmount.toLocaleString()}</p>
+                                                {workOrder.originalAmount && workOrder.originalAmount !== workOrder.totalAmount && (
+                                                    <p className="text-yellow-600">(+${(workOrder.totalAmount - workOrder.originalAmount).toLocaleString()})</p>
+                                                )}
                                     {workOrder.advancePayment && workOrder.advancePayment > 0 ? (
                                         <>
                                             <p className="text-blue-600">Abonado: ${workOrder.advancePayment.toLocaleString()}</p>
@@ -467,14 +467,14 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                                     ) : (
                                         <p className="text-muted-foreground">Sin abono</p>
                                     )}
-                                </div>
-                                </div>
-                            </div>
-                            ))
-                        )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </CardContent>
-                    </Card>
+                </Card>
 
                 <Card>
                     <CardHeader><CardTitle>Para Entrega</CardTitle><CardDescription>Bicicletas listas para entregar a clientes</CardDescription></CardHeader>
@@ -664,12 +664,12 @@ const BicyclesTab = ({ onNewBicycleClick }: { onNewBicycleClick: () => void }) =
                         <div className="space-y-4 pt-4">
                             <div><Label>Cliente</Label><Select value={editingBicycle.clientId} onValueChange={(value) => setEditingBicycle({ ...editingBicycle, clientId: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{state.clients.map(client => (<SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>))}</SelectContent></Select></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><Label>Marca</Label><Input value={editingBicycle.brand} onChange={(e) => setEditingBicycle({ ...editingBicycle, brand: e.target.value })}/></div>
-                                <div><Label>Modelo</Label><Input value={editingBicycle.model} onChange={(e) => setEditingBicycle({ ...editingBicycle, model: e.target.value })}/></div>
+                                <div><Label>Marca</Label><Input value={editingBicycle.brand} onChange={(e) => setEditingBicycle({ ...editingBicycle, brand: e.target.value })} /></div>
+                                <div><Label>Modelo</Label><Input value={editingBicycle.model} onChange={(e) => setEditingBicycle({ ...editingBicycle, model: e.target.value })} /></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><Label>Tipo</Label><Select value={editingBicycle.type} onValueChange={(value: any) => setEditingBicycle({ ...editingBicycle, type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="mountain">Montaña</SelectItem><SelectItem value="road">Ruta</SelectItem><SelectItem value="hybrid">Híbrida</SelectItem><SelectItem value="electric">Eléctrica</SelectItem><SelectItem value="bmx">BMX</SelectItem><SelectItem value="other">Otro</SelectItem></SelectContent></Select></div>
-                                <div><Label>Color</Label><Input value={editingBicycle.color} onChange={(e) => setEditingBicycle({ ...editingBicycle, color: e.target.value })}/></div>
+                                <div><Label>Color</Label><Input value={editingBicycle.color} onChange={(e) => setEditingBicycle({ ...editingBicycle, color: e.target.value })} /></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><Label>N° Serie</Label><Input value={editingBicycle.serialNumber || ''} onChange={(e) => setEditingBicycle({ ...editingBicycle, serialNumber: e.target.value })}/></div>
@@ -721,35 +721,35 @@ const WorkOrdersTab = ({ onNewWorkOrderClick }: { onNewWorkOrderClick: () => voi
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {state.workOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(workOrder => (
-                              <TableRow key={workOrder.id}>
-                                  <TableCell>#{workOrder.id.slice(-6)}</TableCell>
-                                  <TableCell>{workOrder.client.name}</TableCell>
-                                  <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
-                                  <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
-                                  <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
-                                  <TableCell>
-                                    <Badge variant={ workOrder.status === 'open' ? 'default' : workOrder.status === 'in_progress' ? 'secondary' : workOrder.status === 'ready_for_delivery' ? 'outline' : 'default' }>
-                                      {translateStatus(workOrder.status)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-center space-x-2">
-                                    <Button variant="outline" size="sm" onClick={() => setEditingWorkOrder(workOrder)}><Edit className="h-4 w-4" /></Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild><Button variant="destructive" size="sm"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                                <AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará la ficha de trabajo permanentemente.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteWorkOrder(workOrder.id)}>Eliminar</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                  </TableCell>
-                              </TableRow>
+                            {state.workOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(workOrder => (
+                                <TableRow key={workOrder.id}>
+                                    <TableCell>#{workOrder.id.slice(-6)}</TableCell>
+                                    <TableCell>{workOrder.client.name}</TableCell>
+                                    <TableCell>{workOrder.bicycle.brand} {workOrder.bicycle.model}</TableCell>
+                                    <TableCell>{new Date(workOrder.createdAt).toLocaleDateString()}</TableCell>
+                                    <TableCell>{workOrder.estimatedDeliveryDate ? new Date(workOrder.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={workOrder.status === 'open' ? 'default' : workOrder.status === 'in_progress' ? 'secondary' : workOrder.status === 'ready_for_delivery' ? 'outline' : 'default'}>
+                                            {translateStatus(workOrder.status)}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-center space-x-2">
+                                        <Button variant="outline" size="sm" onClick={() => setEditingWorkOrder(workOrder)}><Edit className="h-4 w-4" /></Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild><Button variant="destructive" size="sm"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                    <AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará la ficha de trabajo permanentemente.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteWorkOrder(workOrder.id)}>Eliminar</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </TableCell>
+                                </TableRow>
                             ))}
                         </TableBody>
                     </Table>
@@ -1086,50 +1086,92 @@ const DataTab = () => {
 export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedWorkOrderForQuote, setSelectedWorkOrderForQuote] = useState<WorkOrder | null>(null);
-    
+
     const [newWorkOrder, setNewWorkOrder] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
     const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
     const [showAddClientModal, setShowAddClientModal] = useState(false);
     const [showAddBicycleModal, setShowAddBicycleModal] = useState(false);
-  
+
     return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h1>Panel de Administración</h1>
-          <p className="text-muted-foreground">Sistema de gestión del taller Marchant Bike</p>
+        <div className="p-6">
+            <div className="mb-6">
+                <h1>Panel de Administración</h1>
+                <p className="text-muted-foreground">Sistema de gestión del taller Marchant Bike</p>
+            </div>
+
+            <Tabs defaultValue="overview" onValueChange={setActiveTab} value={activeTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-7">
+                    <TabsTrigger value="overview">Resumen</TabsTrigger>
+                    <TabsTrigger value="clients">Clientes</TabsTrigger>
+                    <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
+                    <TabsTrigger value="workorders">Fichas</TabsTrigger>
+                    <TabsTrigger value="inventory">Inventario</TabsTrigger>
+                    <TabsTrigger value="data">Datos</TabsTrigger>
+                    <TabsTrigger value="users">Usuarios</TabsTrigger>
+                </TabsList>
+                <TabsContent value="overview" className="mt-6">
+                    <OverviewTab
+                        onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)}
+                        onSelectWorkOrderForQuote={setSelectedWorkOrderForQuote}
+                    />
+                </TabsContent>
+                <TabsContent value="clients" className="mt-6"><ClientsTab onNewClientClick={() => setShowAddClientModal(true)} /></TabsContent>
+                <TabsContent value="bicycles" className="mt-6"><BicyclesTab onNewBicycleClick={() => setShowAddBicycleModal(true)} /></TabsContent>
+                <TabsContent value="workorders" className="mt-6"><WorkOrdersTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
+                <TabsContent value="inventory" className="mt-6"><InventoryManagement activeTab={activeTab} /></TabsContent>
+                <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
+                <TabsContent value="users" className="mt-6">
+                    <UserManagement />
+                </TabsContent>
+
+            </Tabs>
+
+            {/* --- GESTIÓN CENTRALIZADA DE TODOS LOS MODALES --- */}
+
+            <Dialog open={showAddWorkOrderModal} onOpenChange={(isOpen) => {
+                setShowAddWorkOrderModal(isOpen);
+                if (!isOpen) { setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' }); }
+            }}>
+                <DialogContent>
+                    <NewWorkOrderForm
+                        closeModal={() => {
+                            setShowAddWorkOrderModal(false);
+                            setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+                        }}
+                        newWorkOrder={newWorkOrder}
+                        setNewWorkOrder={setNewWorkOrder}
+                        onShowAddClient={() => setShowAddClientModal(true)}
+                        onShowAddBicycle={() => setShowAddBicycleModal(true)}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={showAddClientModal} onOpenChange={setShowAddClientModal}>
+                <DialogContent>
+                    <NewClientForm
+                        closeModal={() => setShowAddClientModal(false)}
+                        onClientCreated={(client) => setNewWorkOrder({ ...newWorkOrder, clientId: client.id })}
+                    />
+                </DialogContent>
+            </Dialog>
+            <Dialog open={showAddBicycleModal} onOpenChange={setShowAddBicycleModal}>
+                <DialogContent>
+                    <NewBicycleForm
+                        closeModal={() => setShowAddBicycleModal(false)}
+                        selectedClientId={newWorkOrder.clientId}
+                        onBicycleCreated={(bicycle) => setNewWorkOrder({ ...newWorkOrder, bicycleId: bicycle.id })}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            {selectedWorkOrderForQuote && (
+                <QuoteDetailDialog
+                    workOrder={selectedWorkOrderForQuote}
+                    open={!!selectedWorkOrderForQuote}
+                    onOpenChange={(open) => !open && setSelectedWorkOrderForQuote(null)}
+                />
+            )}
+
         </div>
-  
-        <Tabs defaultValue="overview" onValueChange={setActiveTab} value={activeTab} className="w-full">
-          {/* MODIFICACIÓN AQUÍ: Añadimos una columna más para la nueva pestaña */}
-          <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="overview">Resumen</TabsTrigger>
-              <TabsTrigger value="clients">Clientes</TabsTrigger>
-              <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
-              <TabsTrigger value="workorders">Fichas</TabsTrigger>
-              <TabsTrigger value="inventory">Inventario</TabsTrigger>
-              <TabsTrigger value="data">Datos</TabsTrigger>
-              <TabsTrigger value="users">Usuarios</TabsTrigger> {/* <-- AÑADIR ESTA LÍNEA */}
-          </TabsList>
-          <TabsContent value="overview" className="mt-6">
-            <OverviewTab 
-              onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} 
-              onSelectWorkOrderForQuote={setSelectedWorkOrderForQuote}
-            />
-          </TabsContent>
-          <TabsContent value="clients" className="mt-6"><ClientsTab onNewClientClick={() => setShowAddClientModal(true)} /></TabsContent>
-          <TabsContent value="bicycles" className="mt-6"><BicyclesTab onNewBicycleClick={() => setShowAddBicycleModal(true)} /></TabsContent>
-          <TabsContent value="workorders" className="mt-6"><WorkOrdersTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
-          <TabsContent value="inventory" className="mt-6"><InventoryManagement activeTab={activeTab} /></TabsContent>
-          <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
-          
-          {/* AÑADIR ESTE NUEVO BLOQUE */}
-          <TabsContent value="users" className="mt-6">
-            <UserManagement />
-          </TabsContent>
-  
-        </Tabs>
-        
-        {/* ... (El resto del archivo con la gestión de modales se mantiene igual) */}
-      </div>
     );
-  }
+}
