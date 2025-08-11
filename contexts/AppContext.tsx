@@ -1,23 +1,20 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { AppState, User, Client, Bicycle, WorkOrder, ServiceItem, PartItem, WorkOrderStatus } from '../lib/types';
-import { mockUsers, mockClients, mockBicycles, mockWorkOrders, mockServices, mockParts } from '../lib/mockData';
 import { getServices, createService, updateService, deleteService } from '../services/services';
 import { getParts, createPart, updatePart, deletePart } from '../services/parts';
 import { getClients, createClient, updateClient, deleteClient } from '../services/clients';
 import { getBicycles, createBicycle, updateBicycle, deleteBicycle } from '../services/bicycles';
-import { getWorkOrders, createWorkOrder, startWorkOnOrder, completeWorkOnOrder,updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
+import { getWorkOrders, createWorkOrder, startWorkOnOrder, completeWorkOnOrder, updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
 import { getUsers } from '../services/users';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '../firebase/config';
 
-
-type AppAction = 
-  | { type: 'SET_USER'; payload: User[] }
-  | { type: 'SET_CURRENT_USER'; payload: User | null }
+type AppAction =
+  | { type: 'SET_USERS'; payload: User[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'ADD_CLIENT'; payload: Client }
   | { type: 'UPDATE_CLIENT'; payload: Client }
-  | { type: 'DELETE_CLIENT'; payload: string } 
+  | { type: 'DELETE_CLIENT'; payload: string }
   | { type: 'ADD_BICYCLE'; payload: Bicycle }
   | { type: 'UPDATE_BICYCLE'; payload: Bicycle }
   | { type: 'DELETE_BICYCLE'; payload: string }
@@ -44,24 +41,20 @@ type AppAction =
   | { type: 'SEND_QUOTE'; payload: { workOrderId: string } }
   | { type: 'RESPOND_TO_QUOTE'; payload: { workOrderId: string; response: 'approved' | 'rejected' | 'partial_reject'; notes?: string; rejectedItems?: { services: string[]; parts: string[]; } } };
 
-const initialState: AppState = {
-  currentUser: null,
-  users: [], // <-- LÍNEA AÑADIDA
+const initialState: Omit<AppState, 'currentUser'> = {
+  users: [],
   clients: [],
   bicycles: [],
   workOrders: [],
   services: [],
   parts: [],
-  isLoading: false
+  isLoading: true
 };
 
-function appReducer(state: AppState, action: AppAction): AppState {
+function appReducer(state: Omit<AppState, 'currentUser'>, action: AppAction): Omit<AppState, 'currentUser'> {
   switch (action.type) {
-    case 'SET_USER':
+    case 'SET_USERS':
       return { ...state, users: action.payload };
-
-    case 'SET_CURRENT_USER': // <-- VERIFICAR/AÑADIR
-      return { ...state, currentUser: action.payload };
 
     case 'SET_CLIENTS':
       return { ...state, clients: action.payload };
@@ -79,14 +72,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, clients: [...state.clients, action.payload] };
     
     case 'UPDATE_CLIENT':
-      updateClient(action.payload.id, action.payload); // Llama a Firebase
+      updateClient(action.payload.id, action.payload);
       return {
         ...state,
         clients: state.clients.map(c => c.id === action.payload.id ? action.payload : c),
       };
 
     case 'DELETE_CLIENT':
-      deleteClient(action.payload); // Llama a Firebase
+      deleteClient(action.payload);
       return {
         ...state,
         clients: state.clients.filter(c => c.id !== action.payload),
@@ -96,14 +89,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, bicycles: [...state.bicycles, action.payload] };
     
     case 'UPDATE_BICYCLE':
-      updateBicycle(action.payload.id, action.payload); // Llama a Firebase
+      updateBicycle(action.payload.id, action.payload);
       return {
         ...state,
         bicycles: state.bicycles.map(b => b.id === action.payload.id ? action.payload : b),
       };
 
     case 'DELETE_BICYCLE':
-      deleteBicycle(action.payload); // Llama a Firebase
+      deleteBicycle(action.payload);
       return {
         ...state,
         bicycles: state.bicycles.filter(b => b.id !== action.payload),
@@ -137,11 +130,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
         ),
       };
       
-    
     case 'START_WORK_ORDER':
-      // Llama a la función de Firebase en segundo plano
       startWorkOnOrder(action.payload.workOrderId, action.payload.mechanicId);
-      // Actualiza el estado local para una respuesta visual instantánea
       return {
         ...state,
         workOrders: state.workOrders.map(wo => 
@@ -152,9 +142,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     
     case 'COMPLETE_WORK_ORDER':
-      // Llama a la función de Firebase en segundo plano
       completeWorkOnOrder(action.payload);
-      // Actualiza el estado local
       return {
         ...state,
         workOrders: state.workOrders.map(wo => 
@@ -196,7 +184,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'DELETE_WORK_ORDER':
-      deleteWorkOrder(action.payload); // Llama a Firebase
+      deleteWorkOrder(action.payload);
       return {
         ...state,
         workOrders: state.workOrders.filter(wo => wo.id !== action.payload),
@@ -212,7 +200,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, services: [...state.services, action.payload] };
 
     case 'UPDATE_SERVICE':
-      updateService(action.payload.id, action.payload); // Llama a Firebase
+      updateService(action.payload.id, action.payload);
       return {
         ...state,
         services: state.services.map(s => 
@@ -233,13 +221,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'DELETE_SERVICE':
-    // Llama a la función de Firebase para borrar en la base de datos
-    deleteService(action.payload); 
-    // Actualiza la lista en el frontend para que el cambio se vea al instante
-    return {
-      ...state,
-      services: state.services.filter(s => s.id !== action.payload)
-    };
+      deleteService(action.payload); 
+      return {
+        ...state,
+        services: state.services.filter(s => s.id !== action.payload)
+      };
 
   case 'DELETE_PART':
     // Llama a la función de Firebase para borrar en la base de datos
@@ -345,7 +331,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 }
 
 const AppContext = createContext<{
-  state: AppState;
+  state: Omit<AppState, 'currentUser'>;
   dispatch: React.Dispatch<AppAction>;
 } | null>(null);
 
@@ -353,45 +339,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   useEffect(() => {
-    // Usamos una bandera para evitar la doble ejecución en modo estricto de React
     let isMounted = true;
+    dispatch({ type: 'SET_LOADING', payload: true });
 
     const fetchData = async () => {
-      console.log("Iniciando carga de datos desde Firebase...");
       try {
-        // --- Carga de Clientes ---
-        const clientsSnapshot = await getDocs(collection(db, "clients"));
-        const clientsData = clientsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return { 
-            id: doc.id, 
-            ...data,
-            // Conversión segura de fechas
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
-          } as Client;
-        });
+        const [clientsData, usersData, bicyclesData, servicesData, partsData] = await Promise.all([
+          getClients(),
+          getUsers(),
+          getBicycles(),
+          getServices(),
+          getParts()
+        ]);
+
         if (isMounted) {
           dispatch({ type: 'SET_CLIENTS', payload: clientsData });
-          console.log("Clientes cargados:", clientsData.length);
-        }
-
-        // --- AÑADIMOS LA CARGA DE USUARIOS ---
-        const usersData = await getUsers();
-        dispatch({ type: 'SET_USER', payload: usersData });
-
-        // --- Carga de Bicicletas ---
-        const bicyclesSnapshot = await getDocs(collection(db, "bicycles"));
-        const bicyclesData = bicyclesSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return { 
-            id: doc.id, 
-            ...data,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
-          } as Bicycle;
-        });
-        if (isMounted) {
+          dispatch({ type: 'SET_USERS', payload: usersData });
           dispatch({ type: 'SET_BICYCLES', payload: bicyclesData });
           console.log("Bicicletas cargadas:", bicyclesData.length);
         }
@@ -450,26 +413,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
         if (isMounted) {
           dispatch({ type: 'SET_WORK_ORDERS', payload: workOrdersData });
-          console.log("Fichas de trabajo cargadas:", workOrdersData.length);
+          dispatch({ type: 'SET_LOADING', payload: false });
         }
-
-        // --- Carga de Inventario ---
-        const servicesData = await getServices();
-        const partsData = await getParts();
-        if (isMounted) {
-            dispatch({ type: 'SET_SERVICES', payload: servicesData });
-            dispatch({ type: 'SET_PARTS', payload: partsData });
-            console.log("Inventario cargado:", { services: servicesData.length, parts: partsData.length });
-        }
-
       } catch (error) {
         console.error("Error crítico al cargar datos desde Firebase: ", error);
+        if(isMounted) dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
 
     fetchData();
 
-    // Función de limpieza para evitar efectos secundarios en modo estricto
     return () => {
       isMounted = false;
     };
@@ -488,25 +441,4 @@ export function useApp() {
     throw new Error('useApp must be used within AppProvider');
   }
   return context;
-}
-
-// Helper hooks
-export function useAuth() {
-  const { state, dispatch } = useApp();
-  
-  const login = (userToLogin: User) => {
-    // Simplemente establece el usuario que nos pasaron como el usuario actual
-    dispatch({ type: 'SET_CURRENT_USER', payload: userToLogin });
-  };
-
-  const logout = () => {
-    dispatch({ type: 'SET_CURRENT_USER', payload: null });
-  };
-
-  return {
-    user: state.currentUser,
-    login,
-    logout,
-    isAuthenticated: !!state.currentUser
-  };
 }

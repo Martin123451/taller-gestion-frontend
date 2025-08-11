@@ -1,17 +1,56 @@
-import { collection, getDocs } from "firebase/firestore";
-import { db } from '../firebase/config';
+import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { db, auth } from '../firebase/config';
 
-// Esta función pide a Firebase la lista completa de usuarios
+const usersCollection = collection(db, "users");
+const functionsUrl = "https://us-central1-taller-gestion-backend.cloudfunctions.net"; // Reemplaza con tu Project ID
+
+// Función helper para llamar a nuestras Cloud Functions de forma segura
+const callFunction = async (functionName, data) => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Usuario no autenticado.");
+
+  const token = await user.getIdToken();
+
+  const response = await fetch(`${functionsUrl}/${functionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ data: data }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Ocurrió un error en el servidor.');
+  }
+
+  return result.data;
+};
+
 export const getUsers = async () => {
-    const querySnapshot = await getDocs(collection(db, "users"));
-    const users = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-            id: doc.id,
-            ...data,
-            // Si tienes fechas en tus usuarios, conviértelas aquí
-            // createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date()
-        };
-    });
-    return users;
+    const querySnapshot = await getDocs(usersCollection);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const getUserById = async (uid) => {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+        return { id: userDoc.id, ...userDoc.data() };
+    }
+    return null;
+};
+
+export const createUser = async (userData) => {
+  return callFunction('createUser', userData);
+};
+
+export const updateUser = async (uid, dataToUpdate) => {
+    const userDoc = doc(db, "users", uid);
+    await updateDoc(userDoc, dataToUpdate);
+};
+
+export const deleteUser = async (uid) => {
+  return callFunction('deleteUser', { uid });
 };

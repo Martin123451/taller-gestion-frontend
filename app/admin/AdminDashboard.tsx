@@ -27,8 +27,7 @@ import { createWorkOrder } from '../../services/workOrders';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
 import { Users, Bike, FileText, Plus, Minus, Edit, CheckCircle2, Truck, BarChart3, Download, Clock, AlertTriangle, Send, DollarSign, Trash2 } from 'lucide-react';
 import QuoteDetailDialog from '../../components/QuoteDetailDialog';
-
-// --- SUB-COMPONENTES DE FORMULARIOS (Definidos fuera para estabilidad) ---
+import UserManagement from './UserManagement';
 
 const NewClientForm = ({ closeModal, onClientCreated }: { closeModal: () => void, onClientCreated: (newClient: Client) => void }) => {
     const { dispatch } = useApp();
@@ -1085,89 +1084,52 @@ const DataTab = () => {
 // --- COMPONENTE PRINCIPAL ---
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [selectedWorkOrderForQuote, setSelectedWorkOrderForQuote] = useState<WorkOrder | null>(null);
+    const [activeTab, setActiveTab] = useState('overview');
+    const [selectedWorkOrderForQuote, setSelectedWorkOrderForQuote] = useState<WorkOrder | null>(null);
+    
+    const [newWorkOrder, setNewWorkOrder] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
+    const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
+    const [showAddClientModal, setShowAddClientModal] = useState(false);
+    const [showAddBicycleModal, setShowAddBicycleModal] = useState(false);
   
-  const [newWorkOrder, setNewWorkOrder] = useState({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
-  const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
-  const [showAddClientModal, setShowAddClientModal] = useState(false);
-  const [showAddBicycleModal, setShowAddBicycleModal] = useState(false);
-
-  return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1>Panel de Administración</h1>
-        <p className="text-muted-foreground">Sistema de gestión del taller Marchant Bike</p>
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <h1>Panel de Administración</h1>
+          <p className="text-muted-foreground">Sistema de gestión del taller Marchant Bike</p>
+        </div>
+  
+        <Tabs defaultValue="overview" onValueChange={setActiveTab} value={activeTab} className="w-full">
+          {/* MODIFICACIÓN AQUÍ: Añadimos una columna más para la nueva pestaña */}
+          <TabsList className="grid w-full grid-cols-7">
+              <TabsTrigger value="overview">Resumen</TabsTrigger>
+              <TabsTrigger value="clients">Clientes</TabsTrigger>
+              <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
+              <TabsTrigger value="workorders">Fichas</TabsTrigger>
+              <TabsTrigger value="inventory">Inventario</TabsTrigger>
+              <TabsTrigger value="data">Datos</TabsTrigger>
+              <TabsTrigger value="users">Usuarios</TabsTrigger> {/* <-- AÑADIR ESTA LÍNEA */}
+          </TabsList>
+          <TabsContent value="overview" className="mt-6">
+            <OverviewTab 
+              onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} 
+              onSelectWorkOrderForQuote={setSelectedWorkOrderForQuote}
+            />
+          </TabsContent>
+          <TabsContent value="clients" className="mt-6"><ClientsTab onNewClientClick={() => setShowAddClientModal(true)} /></TabsContent>
+          <TabsContent value="bicycles" className="mt-6"><BicyclesTab onNewBicycleClick={() => setShowAddBicycleModal(true)} /></TabsContent>
+          <TabsContent value="workorders" className="mt-6"><WorkOrdersTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
+          <TabsContent value="inventory" className="mt-6"><InventoryManagement activeTab={activeTab} /></TabsContent>
+          <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
+          
+          {/* AÑADIR ESTE NUEVO BLOQUE */}
+          <TabsContent value="users" className="mt-6">
+            <UserManagement />
+          </TabsContent>
+  
+        </Tabs>
+        
+        {/* ... (El resto del archivo con la gestión de modales se mantiene igual) */}
       </div>
-
-      <Tabs defaultValue="overview" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview">Resumen</TabsTrigger>
-            <TabsTrigger value="clients">Clientes</TabsTrigger>
-            <TabsTrigger value="bicycles">Bicicletas</TabsTrigger>
-            <TabsTrigger value="workorders">Fichas</TabsTrigger>
-            <TabsTrigger value="inventory">Inventario</TabsTrigger>
-            <TabsTrigger value="data">Datos</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview" className="mt-6">
-          <OverviewTab 
-            onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} 
-            onSelectWorkOrderForQuote={setSelectedWorkOrderForQuote}
-          />
-        </TabsContent>
-        <TabsContent value="clients" className="mt-6"><ClientsTab onNewClientClick={() => setShowAddClientModal(true)} /></TabsContent>
-        <TabsContent value="bicycles" className="mt-6"><BicyclesTab onNewBicycleClick={() => setShowAddBicycleModal(true)} /></TabsContent>
-        <TabsContent value="workorders" className="mt-6"><WorkOrdersTab onNewWorkOrderClick={() => setShowAddWorkOrderModal(true)} /></TabsContent>
-        <TabsContent value="inventory" className="mt-6"><InventoryManagement activeTab={activeTab} /></TabsContent>
-        <TabsContent value="data" className="mt-6"><DataTab /></TabsContent>
-      </Tabs>
-      
-      {/* --- GESTIÓN CENTRALIZADA DE TODOS LOS MODALES --- */}
-
-      <Dialog open={showAddWorkOrderModal} onOpenChange={(isOpen) => {
-          setShowAddWorkOrderModal(isOpen);
-          if (!isOpen) { setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' }); }
-      }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <NewWorkOrderForm 
-                  closeModal={() => {
-                      setShowAddWorkOrderModal(false);
-                      setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' });
-                  }}
-                  newWorkOrder={newWorkOrder}
-                  setNewWorkOrder={setNewWorkOrder}
-                  onShowAddClient={() => setShowAddClientModal(true)}
-                  onShowAddBicycle={() => setShowAddBicycleModal(true)}
-              />
-          </DialogContent>
-      </Dialog>
-
-      <Dialog open={showAddClientModal} onOpenChange={setShowAddClientModal}>
-          <DialogContent>
-              <NewClientForm 
-                  closeModal={() => setShowAddClientModal(false)}
-                  onClientCreated={(client) => setNewWorkOrder({...newWorkOrder, clientId: client.id})}
-              />
-          </DialogContent>
-      </Dialog>
-      <Dialog open={showAddBicycleModal} onOpenChange={setShowAddBicycleModal}>
-          <DialogContent>
-              <NewBicycleForm 
-                  closeModal={() => setShowAddBicycleModal(false)}
-                  selectedClientId={newWorkOrder.clientId}
-                  onBicycleCreated={(bicycle) => setNewWorkOrder({...newWorkOrder, bicycleId: bicycle.id})}
-              />
-          </DialogContent>
-      </Dialog>
-
-       {selectedWorkOrderForQuote && (
-          <QuoteDetailDialog
-              workOrder={selectedWorkOrderForQuote}
-              open={!!selectedWorkOrderForQuote}
-              onOpenChange={(open) => !open && setSelectedWorkOrderForQuote(null)}
-          />
-      )}
-
-    </div>
-  );
-}
+    );
+  }
