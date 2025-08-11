@@ -1132,7 +1132,7 @@ export default function AdminDashboard() {
                 setShowAddWorkOrderModal(isOpen);
                 if (!isOpen) { setNewWorkOrder({ clientId: '', bicycleId: '', description: '', estimatedDeliveryDate: '' }); }
             }}>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <NewWorkOrderForm
                         closeModal={() => {
                             setShowAddWorkOrderModal(false);
