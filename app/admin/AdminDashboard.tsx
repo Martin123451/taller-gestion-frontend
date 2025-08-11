@@ -105,14 +105,24 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
     const { state, dispatch } = useApp();
     const [selectedServices, setSelectedServices] = useState<any[]>([]);
     const [selectedParts, setSelectedParts] = useState<any[]>([]);
+    const [advancePayment, setAdvancePayment] = useState<string>('');
 
     // Reset form cuando cambie el cliente/bicicleta
     React.useEffect(() => {
         if (!newWorkOrder.clientId) {
             setSelectedServices([]);
             setSelectedParts([]);
+            setAdvancePayment('');
         }
     }, [newWorkOrder.clientId]);
+
+    // Actualizar sugerencia de abono cuando cambie el total
+    React.useEffect(() => {
+        const total = calculateTotal();
+        if (total > 0 && !advancePayment) {
+            setAdvancePayment(Math.round(total * 0.5).toString());
+        }
+    }, [selectedServices, selectedParts]);
 
     const addService = (serviceId: string) => {
         try {
@@ -188,6 +198,7 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
     const resetForm = () => {
         setSelectedServices([]);
         setSelectedParts([]);
+        setAdvancePayment('');
     };
 
     const handleAddWorkOrder = async () => {
@@ -195,12 +206,14 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
         const bicycle = state.bicycles.find(b => b.id === newWorkOrder.bicycleId);
         if (client && bicycle) {
             const totalAmount = calculateTotal();
+            const advanceAmount = parseFloat(advancePayment) || 0;
             const workOrderData = {
                 ...newWorkOrder,
                 status: 'open',
                 services: selectedServices,
                 parts: selectedParts,
                 totalAmount: totalAmount,
+                advancePayment: advanceAmount,
                 // Como la ficha se crea con servicios/piezas, estos son originales
                 originalServices: selectedServices,
                 originalParts: selectedParts,
@@ -288,11 +301,31 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
                 </div>
 
                 {(selectedServices.length > 0 || selectedParts.length > 0) && (
-                    <div className="pt-4 bg-gray-50 p-4 -m-6 mt-4 rounded-lg">
+                    <div className="pt-4 bg-gray-50 p-4 -m-6 mt-4 rounded-lg space-y-4">
                         <div className="flex justify-between items-center">
                             <span className="text-sm text-muted-foreground">Total Estimado:</span>
                             <span className="text-lg font-bold text-marchant-green">${calculateTotal().toLocaleString()}</span>
                         </div>
+                        <div>
+                            <Label htmlFor="advancePayment">Abono/Adelanto</Label>
+                            <Input 
+                                id="advancePayment" 
+                                type="number" 
+                                value={advancePayment} 
+                                onChange={(e) => setAdvancePayment(e.target.value)}
+                                placeholder={`Abonar $${Math.round(calculateTotal() * 0.5).toLocaleString()}`}
+                                className="mt-1"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Sugerencia: 50% del total (${Math.round(calculateTotal() * 0.5).toLocaleString()})
+                            </p>
+                        </div>
+                        {advancePayment && parseFloat(advancePayment) > 0 && (
+                            <div className="flex justify-between items-center text-sm border-t pt-2">
+                                <span className="text-muted-foreground">Restante por cobrar:</span>
+                                <span className="font-medium text-marchant-red">${(calculateTotal() - (parseFloat(advancePayment) || 0)).toLocaleString()}</span>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -354,12 +387,26 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
-                            {state.workOrders.filter(wo => wo.status === 'open' || wo.status === 'in_progress').sort((a, b) => (a.estimatedDeliveryDate?.getTime() || Infinity) - (b.estimatedDeliveryDate?.getTime() || Infinity)).slice(0, 5).map(workOrder => (
+                            {state.workOrders.filter(wo => wo.status === 'open' || wo.status === 'in_progress').sort((a, b) => (a.estimatedDeliveryDate?.getTime() || Infinity) - (b.estimatedDeliveryDate?.getTime() || Infinity)).slice(0, 5).map(workOrder => {
+                                const remainingAmount = workOrder.totalAmount - (workOrder.advancePayment || 0);
+                                return (
                                 <div key={workOrder.id} className="flex items-center justify-between p-3 border rounded">
-                                    <div className="space-y-1"><p className="text-sm">{workOrder.client.name}</p><p className="text-xs text-muted-foreground">{workOrder.bicycle.brand} {workOrder.bicycle.model}</p></div>
+                                    <div className="space-y-1">
+                                        <p className="text-sm">{workOrder.client.name}</p>
+                                        <p className="text-xs text-muted-foreground">{workOrder.bicycle.brand} {workOrder.bicycle.model}</p>
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-marchant-green font-medium">Total: ${workOrder.totalAmount.toLocaleString()}</p>
+                                            {workOrder.advancePayment && workOrder.advancePayment > 0 && (
+                                                <>
+                                                    <p className="text-xs text-blue-600">Abonado: ${workOrder.advancePayment.toLocaleString()}</p>
+                                                    <p className="text-xs text-marchant-red font-medium">Restante: ${remainingAmount.toLocaleString()}</p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
                                     <div className="text-right"><Badge variant={workOrder.status === 'open' ? 'default' : 'secondary'}>{translateStatus(workOrder.status)}</Badge>{workOrder.estimatedDeliveryDate && (<p className="text-xs text-muted-foreground mt-1">Entrega: {workOrder.estimatedDeliveryDate.toLocaleDateString()}</p>)}</div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     </CardContent>
                 </Card>
@@ -409,10 +456,16 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                                 </div>
                                 <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t">
                                 <span>#{workOrder.id.slice(-6)}</span>
-                                <div className="text-right">
+                                <div className="text-right space-y-1">
                                     <p>Total: ${workOrder.totalAmount.toLocaleString()}</p>
                                     {workOrder.originalAmount && workOrder.originalAmount !== workOrder.totalAmount && (
                                             <p className="text-yellow-600">(+${(workOrder.totalAmount - workOrder.originalAmount).toLocaleString()})</p>
+                                    )}
+                                    {workOrder.advancePayment && workOrder.advancePayment > 0 && (
+                                        <>
+                                            <p className="text-blue-600">Abonado: ${workOrder.advancePayment.toLocaleString()}</p>
+                                            <p className="text-marchant-red font-medium">Restante: ${(workOrder.totalAmount - workOrder.advancePayment).toLocaleString()}</p>
+                                        </>
                                     )}
                                 </div>
                                 </div>
@@ -427,7 +480,25 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                     <CardHeader><CardTitle>Para Entrega</CardTitle><CardDescription>Bicicletas listas para entregar a clientes</CardDescription></CardHeader>
                     <CardContent>
                         <div className="space-y-3">
-                            {state.workOrders.filter(wo => wo.status === 'ready_for_delivery').map(workOrder => (<div key={workOrder.id} className="flex items-center justify-between p-3 border rounded"><div className="space-y-1"><p className="text-sm">{workOrder.client.name}</p><p className="text-xs text-muted-foreground">Total: ${workOrder.totalAmount.toLocaleString()}</p></div><Button size="sm" onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}><CheckCircle2 className="h-4 w-4 mr-1" />Entregar</Button></div>))}
+                            {state.workOrders.filter(wo => wo.status === 'ready_for_delivery').map(workOrder => {
+                                const remainingAmount = workOrder.totalAmount - (workOrder.advancePayment || 0);
+                                return (
+                                <div key={workOrder.id} className="flex items-center justify-between p-3 border rounded">
+                                    <div className="space-y-1">
+                                        <p className="text-sm">{workOrder.client.name}</p>
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-muted-foreground">Total: ${workOrder.totalAmount.toLocaleString()}</p>
+                                            {workOrder.advancePayment && workOrder.advancePayment > 0 && (
+                                                <>
+                                                    <p className="text-xs text-blue-600">Abonado: ${workOrder.advancePayment.toLocaleString()}</p>
+                                                    <p className="text-xs text-marchant-red font-medium">A cobrar: ${remainingAmount.toLocaleString()}</p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <Button size="sm" onClick={() => dispatch({ type: 'DELIVER_WORK_ORDER', payload: workOrder.id })}><CheckCircle2 className="h-4 w-4 mr-1" />Entregar</Button>
+                                </div>
+                            )})}
                             {state.workOrders.filter(wo => wo.status === 'ready_for_delivery').length === 0 && (<p className="text-sm text-muted-foreground text-center py-4">No hay bicicletas listas para entrega</p>)}
                         </div>
                     </CardContent>

@@ -81,6 +81,7 @@ export interface WorkOrder {
   services: WorkOrderService[];
   parts: WorkOrderPart[];
   totalAmount: number;
+  advancePayment: number;
   mechanicId?: string;
   mechanic?: User;
   startedAt?: Date;

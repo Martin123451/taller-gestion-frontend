@@ -116,6 +116,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
           services: action.payload.services,
           parts: action.payload.parts,
           totalAmount: action.payload.totalAmount,
+          advancePayment: action.payload.advancePayment,
           mechanicNotes: action.payload.mechanicNotes,
           // ====================================================================
           // FIX: Incluir campos originales para preservarlos en Firebase
