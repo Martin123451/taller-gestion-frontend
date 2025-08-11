@@ -18,6 +18,9 @@ export const getWorkOrders = async (clientsData, bicyclesData) => {
             createdAt: data.createdAt.toDate(),
             updatedAt: data.updatedAt.toDate(),
             estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),
+            startedAt: data.startedAt?.toDate(),
+            completedAt: data.completedAt?.toDate(),
+            deliveredAt: data.deliveredAt?.toDate(),
         };
     });
 };
