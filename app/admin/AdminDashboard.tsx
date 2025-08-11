@@ -864,7 +864,7 @@ const DataTab = () => {
                 const endDate = typeof workOrder.completedAt.toDate === 'function' 
                     ? workOrder.completedAt.toDate() 
                     : workOrder.completedAt;
-                workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 24) / 24;
+                workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 100) / 100;
             }
 
             // Listar servicios y piezas
@@ -883,7 +883,7 @@ const DataTab = () => {
                 'Mecánico': mechanicName,
                 'Servicios': services || 'Ninguno',
                 'Piezas': parts || 'Ninguna',
-                'Tiempo Trabajo (días)': workTime,
+                'Tiempo Trabajo (días)': parseFloat(workTime.toFixed(2)),
                 'Total Facturado': workOrder.totalAmount,
                 'Utilidad Estimada': calculateProfit(workOrder),
                 'Descripción': workOrder.description,
@@ -988,7 +988,7 @@ const DataTab = () => {
                                             const endDate = typeof workOrder.completedAt.toDate === 'function' 
                                                 ? workOrder.completedAt.toDate() 
                                                 : workOrder.completedAt;
-                                            workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 24) / 24;
+                                            workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 100) / 100;
                                         }
 
                                         const profit = calculateProfit(workOrder);
@@ -1017,7 +1017,7 @@ const DataTab = () => {
                                                         : 'Ninguna'
                                                     }
                                                 </TableCell>
-                                                <TableCell>{workTime} días</TableCell>
+                                                <TableCell>{workTime.toFixed(2)} días</TableCell>
                                                 <TableCell className="text-right font-semibold">
                                                     ${workOrder.totalAmount.toLocaleString()}
                                                 </TableCell>

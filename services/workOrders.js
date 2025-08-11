@@ -4,17 +4,19 @@ import { db } from '../firebase/config';
 // CORRECCIÓN 1: Apuntar a la colección correcta
 const workOrdersCollection = collection(db, "workorders");
 
-export const getWorkOrders = async (clientsData, bicyclesData) => {
+export const getWorkOrders = async (clientsData, bicyclesData, usersData) => {
     const querySnapshot = await getDocs(workOrdersCollection);
     return querySnapshot.docs.map(doc => {
         const data = doc.data();
         const client = clientsData.find(c => c.id === data.clientId);
         const bicycle = bicyclesData.find(b => b.id === data.bicycleId);
+        const mechanic = data.mechanicId ? usersData.find(u => u.id === data.mechanicId) : null;
         return { 
             id: doc.id, 
             ...data,
             client, 
             bicycle,
+            mechanic,
             createdAt: data.createdAt.toDate(),
             updatedAt: data.updatedAt.toDate(),
             estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),

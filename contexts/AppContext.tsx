@@ -439,7 +439,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             quote,
             client: clientsData.find(c => c.id === data.clientId),
             bicycle: bicyclesData.find(b => b.id === data.bicycleId),
+            mechanic: data.mechanicId ? usersData.find(u => u.id === data.mechanicId) : null,
             estimatedDeliveryDate: data.estimatedDeliveryDate?.toDate(),
+            startedAt: data.startedAt?.toDate(),
+            completedAt: data.completedAt?.toDate(),
+            deliveredAt: data.deliveredAt?.toDate(),
             createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
             updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
           } as WorkOrder;
