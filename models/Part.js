@@ -4,19 +4,22 @@ import { db } from '../firebase/config';
 const partsCollection = collection(db, 'parts');
 
 export class Part {
-    constructor({ id, name, brand, price, stock, createdAt, updatedAt }) {
+    constructor({ id, name, brand, price, stock, code, costPrice, department, createdAt, updatedAt }) {
         this.id = id;
         this.name = name;
         this.brand = brand;
         this.price = price;
         this.stock = stock;
+        this.code = code;
+        this.costPrice = costPrice;
+        this.department = department;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
 
     /**
      * Crea un nuevo repuesto en la base de datos.
-     * @param {object} partData - Datos del repuesto (name, brand, price, stock).
+     * @param {object} partData - Datos del repuesto (name, brand, price, stock, code, costPrice, department).
      * @returns {Promise<Part>} Una instancia del nuevo repuesto.
      */
     static async create(partData) {
@@ -24,6 +27,7 @@ export class Part {
             ...partData,
             price: Number(partData.price) || 0,
             stock: Number(partData.stock) || 0,
+            costPrice: partData.costPrice ? Number(partData.costPrice) : undefined,
             createdAt: new Date(),
             updatedAt: new Date()
         };

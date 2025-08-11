@@ -46,6 +46,9 @@ export interface PartItem {
   brand?: string;
   partNumber?: string;
   stock: number;
+  code?: string; // Código
+  costPrice?: number; // Precio Costo
+  department?: string; // Departamento
 }
 
 export interface WorkOrderService {

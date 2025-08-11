@@ -14,7 +14,17 @@ import { getServices, createService } from '../../services/services';
 import { getParts, createPart } from '../../services/parts';
 
 const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType: 'service' | 'part' }) => {
-    const [formData, setFormData] = useState({ name: '', price: 0, ...(itemType === 'part' && { stock: 0, brand: '' }) });
+    const [formData, setFormData] = useState({ 
+        name: '', 
+        price: 0, 
+        ...(itemType === 'part' && { 
+            stock: 0, 
+            brand: '', 
+            code: '', 
+            costPrice: 0, 
+            department: '' 
+        }) 
+    });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value, type } = e.target;
@@ -40,6 +50,18 @@ const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType:
             <div>
                 <Label htmlFor="brand">Marca</Label>
                 <Input id="brand" value={(formData as PartItem).brand} onChange={handleChange} />
+            </div>
+            <div>
+                <Label htmlFor="code">Código</Label>
+                <Input id="code" value={(formData as PartItem).code} onChange={handleChange} />
+            </div>
+            <div>
+                <Label htmlFor="costPrice">Precio Costo</Label>
+                <Input id="costPrice" type="number" value={(formData as PartItem).costPrice} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
+            </div>
+            <div>
+                <Label htmlFor="department">Departamento</Label>
+                <Input id="department" value={(formData as PartItem).department} onChange={handleChange} />
             </div>
             </>
         )}
@@ -182,8 +204,11 @@ export default function InventoryManagement({ activeTab }: { activeTab: string }
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
+                <TableHead>Código</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
+                <TableHead className="text-right">Precio Costo</TableHead>
+                <TableHead>Departamento</TableHead>
                 <TableHead className="w-[100px] text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -191,8 +216,11 @@ export default function InventoryManagement({ activeTab }: { activeTab: string }
               {state.parts.map(part => (
                 <TableRow key={part.id}>
                   <TableCell>{part.name}</TableCell>
+                  <TableCell>{part.code || '-'}</TableCell>
                   <TableCell>{part.stock}</TableCell>
                   <TableCell className="text-right">${part.price.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{part.costPrice ? `$${part.costPrice.toLocaleString()}` : '-'}</TableCell>
+                  <TableCell>{part.department || '-'}</TableCell>
                   <TableCell className="text-center space-x-2">
                     <EditItemDialog item={part} onSave={handleUpdatePart} itemType="part" />
                     <AlertDialog>

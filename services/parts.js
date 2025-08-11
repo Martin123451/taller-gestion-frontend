@@ -14,18 +14,29 @@ export const getParts = async () => {
 
 export const createPart = async (partData) => {
     const { id, ...dataToSave } = partData;
-    const dataWithNumericStock = {
+    const dataWithNumericFields = {
         ...dataToSave,
-        stock: Number(dataToSave.stock) || 0
+        stock: Number(dataToSave.stock) || 0,
+        price: Number(dataToSave.price) || 0,
+        costPrice: dataToSave.costPrice ? Number(dataToSave.costPrice) : undefined
     };
-    const docRef = await addDoc(partsCollection, dataWithNumericStock);
-    return { id: docRef.id, ...dataWithNumericStock };
+    const docRef = await addDoc(partsCollection, dataWithNumericFields);
+    return { id: docRef.id, ...dataWithNumericFields };
 };
 
 export const updatePart = async (partId, partData) => {
     const partDoc = doc(db, 'parts', partId);
     const { id, ...dataToUpdate } = partData;
-    await updateDoc(partDoc, dataToUpdate);
+    
+    // Asegurar que los campos numéricos sean números
+    const processedData = {
+        ...dataToUpdate,
+        ...(dataToUpdate.price !== undefined && { price: Number(dataToUpdate.price) || 0 }),
+        ...(dataToUpdate.stock !== undefined && { stock: Number(dataToUpdate.stock) || 0 }),
+        ...(dataToUpdate.costPrice !== undefined && { costPrice: dataToUpdate.costPrice ? Number(dataToUpdate.costPrice) : undefined })
+    };
+    
+    await updateDoc(partDoc, processedData);
 };
 
 export const deletePart = async (partId) => {
