@@ -12,12 +12,27 @@ import { createUser, updateUser, deleteUser, getUsers, updateUserPassword } from
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
 
+/**
+ * Traduce el rol de un usuario a un formato legible.
+ * @param role - El rol a traducir ('admin' o 'mechanic').
+ * @returns El rol en español.
+ */
+const translateRole = (role: string): string => {
+  switch (role) {
+    case 'admin':
+      return 'Administrador';
+    case 'mechanic':
+      return 'Mecánico';
+    default:
+      return role;
+  }
+};
 
 export default function UserManagement() {
   const { state, dispatch } = useApp();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'mechanic' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'mechanic' as UserRole });
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -39,17 +54,12 @@ export default function UserManagement() {
 
   const handleSaveUser = async () => {
     try {
-      // Lógica de actualización de datos del usuario
       if (editingUser) {
         await updateUser(editingUser.id, { name: formData.name, email: formData.email, role: formData.role });
-
-        // --- NUEVA LÓGICA PARA CAMBIAR CONTRASEÑA ---
         if (formData.password) {
           await updateUserPassword(editingUser.id, formData.password);
         }
-        // ---------------------------------------------
       } else {
-        // Lógica de creación de usuario (se mantiene igual)
         if (!formData.password) {
           alert("La contraseña es obligatoria para nuevos usuarios.");
           return;
@@ -111,7 +121,7 @@ export default function UserManagement() {
               <TableRow key={user.id}>
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role}</TableCell>
+                <TableCell>{translateRole(user.role)}</TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button variant="outline" size="sm" onClick={() => handleOpenDialog(user)}>
                     <Edit className="h-4 w-4" />
@@ -148,7 +158,6 @@ export default function UserManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Editar' : 'Crear'} Usuario</DialogTitle>
-            {/* AQUÍ ESTÁ LA CORRECCIÓN */}
             <DialogDescription>
               Completa los datos para el nuevo usuario o modifica los existentes.
             </DialogDescription>
@@ -168,7 +177,7 @@ export default function UserManagement() {
             </div>
             <div>
               <Label htmlFor="role">Rol</Label>
-              <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value as 'admin' | 'mechanic' })}>
+              <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value})}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
