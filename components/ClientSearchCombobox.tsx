@@ -16,8 +16,6 @@ export default function ClientSearchCombobox({ selectedClientId, onSelectClient,
   const { state } = useApp();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // --- CAMBIO 1: Añadimos una referencia para controlar la transición ---
   const isTransitioningRef = useRef(false);
 
   const selectedClientName = useMemo(() => {
@@ -25,10 +23,22 @@ export default function ClientSearchCombobox({ selectedClientId, onSelectClient,
   }, [selectedClientId, state.clients]);
 
   const filteredClients = useMemo(() => {
-    if (!searchQuery) return state.clients;
-    return state.clients.filter(client => 
-      client.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    if (!searchQuery) {
+      return state.clients;
+    }
+
+    const lowerCaseQuery = searchQuery.toLowerCase().trim();
+    if (!lowerCaseQuery) {
+        return state.clients;
+    }
+
+    return state.clients.filter(client => {
+      const nameMatch = client.name.toLowerCase().includes(lowerCaseQuery);
+      const emailMatch = client.email && client.email.toLowerCase().includes(lowerCaseQuery);
+      const phoneMatch = client.phone && client.phone.includes(lowerCaseQuery);
+
+      return nameMatch || emailMatch || phoneMatch;
+    });
   }, [searchQuery, state.clients]);
 
   return (
@@ -44,20 +54,18 @@ export default function ClientSearchCombobox({ selectedClientId, onSelectClient,
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      {/* --- CAMBIO 2: Añadimos el evento onCloseAutoFocus --- */}
-      <PopoverContent 
+      <PopoverContent
         className="w-[--radix-popover-trigger-width] p-0"
         onCloseAutoFocus={(e) => {
-          // Si estamos transicionando a otro modal, prevenimos que el foco regrese
           if (isTransitioningRef.current) {
             e.preventDefault();
-            isTransitioningRef.current = false; // Reseteamos la bandera
+            isTransitioningRef.current = false;
           }
         }}
       >
         <Command>
-          <CommandInput 
-            placeholder="Buscar cliente por nombre..." 
+          <CommandInput
+            placeholder="Buscar por nombre, email o teléfono..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -66,7 +74,6 @@ export default function ClientSearchCombobox({ selectedClientId, onSelectClient,
               <div className="py-4 text-center text-sm">
                 <p>No se encontró el cliente.</p>
                 <Button variant="link" className="text-blue-600 h-auto p-1 mt-1" onClick={() => {
-                  // --- CAMBIO 3: Marcamos que la transición va a ocurrir ---
                   isTransitioningRef.current = true;
                   onAddNewClient();
                   setOpen(false);
@@ -80,7 +87,7 @@ export default function ClientSearchCombobox({ selectedClientId, onSelectClient,
               {filteredClients.map((client) => (
                 <CommandItem
                   key={client.id}
-                  value={client.id} // Shadcn recomienda usar un valor único aquí
+                  value={client.name} // <-- ESTE ES EL CAMBIO
                   onSelect={() => {
                     onSelectClient(client.id);
                     setOpen(false);
@@ -89,7 +96,10 @@ export default function ClientSearchCombobox({ selectedClientId, onSelectClient,
                   <Check
                     className={`mr-2 h-4 w-4 ${selectedClientId === client.id ? "opacity-100" : "opacity-0"}`}
                   />
-                  {client.name}
+                  <div>
+                    <p>{client.name}</p>
+                    <p className="text-xs text-muted-foreground">{client.email}</p>
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>
