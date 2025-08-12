@@ -19,10 +19,6 @@ export default function Layout() {
   const Header = () => (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-16 items-center px-4">
-        <Button variant="ghost" size="icon" className="mr-4" onClick={logout}>
-          <ArrowLeft className="h-5 w-5" />
-          <span className="sr-only">Cerrar Sesión</span>
-        </Button>
 
         <div className="flex items-center space-x-4">
           <div className="relative">
