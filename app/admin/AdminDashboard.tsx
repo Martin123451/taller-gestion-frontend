@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Helper function para convertir fecha de input sin problemas de zona horaria
 const dateFromInput = (dateString: string): Date => {
@@ -28,6 +28,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Users, Bike, FileText, Plus, Minus, Edit, CheckCircle2, Truck, BarChart3, Download, Clock, AlertTriangle, Send, DollarSign, Trash2 } from 'lucide-react';
 import QuoteDetailDialog from '../../components/QuoteDetailDialog';
 import UserManagement from './UserManagement';
+import { getServices } from '../../services/services';
+import { getParts } from '../../services/parts';
 
 const NewClientForm = ({ closeModal, onClientCreated }: { closeModal: () => void, onClientCreated: (newClient: Client) => void }) => {
     const { dispatch } = useApp();
@@ -106,7 +108,6 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
     const [selectedParts, setSelectedParts] = useState<any[]>([]);
     const [advancePayment, setAdvancePayment] = useState<string>('');
 
-    // Reset form cuando cambie el cliente/bicicleta
     React.useEffect(() => {
         if (!newWorkOrder.clientId) {
             setSelectedServices([]);
@@ -114,7 +115,6 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
             setAdvancePayment('');
         }
     }, [newWorkOrder.clientId]);
-
 
     const addService = (serviceId: string) => {
         try {
@@ -206,7 +206,6 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
                 parts: selectedParts,
                 totalAmount: totalAmount,
                 advancePayment: advanceAmount,
-                // Como la ficha se crea con servicios/piezas, estos son originales
                 originalServices: selectedServices,
                 originalParts: selectedParts,
                 originalAmount: totalAmount,
@@ -236,7 +235,6 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
 
                 <Separator />
 
-                {/* Sección de Servicios */}
                 <div>
                     <div className="flex justify-between items-center mb-3">
                         <h4 className="text-marchant-green">Servicios Requeridos</h4>
@@ -263,7 +261,6 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
 
                 <Separator />
 
-                {/* Sección de Piezas */}
                 <div>
                     <div className="flex justify-between items-center mb-3">
                         <h4 className="text-marchant-green">Piezas Requeridas</h4>
@@ -300,10 +297,10 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
                         </div>
                         <div>
                             <Label htmlFor="advancePayment">Abono/Adelanto</Label>
-                            <Input 
-                                id="advancePayment" 
-                                type="number" 
-                                value={advancePayment} 
+                            <Input
+                                id="advancePayment"
+                                type="number"
+                                value={advancePayment}
                                 onChange={(e) => setAdvancePayment(e.target.value)}
                                 onWheel={(e) => e.currentTarget.blur()}
                                 placeholder={`Abonar $${Math.round(calculateTotal() * 0.5).toLocaleString()}`}
@@ -327,8 +324,6 @@ const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, onShowAdd
         </>
     );
 };
-
-// --- SUB-COMPONENTES DE PESTAÑAS (Ahora solo muestran información y abren modales) ---
 
 const translateStatus = (status: WorkOrderStatus) => {
     switch (status) {
@@ -447,9 +442,9 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                                                 {workOrder.quote?.status === 'rejected' && (
                                                     <Badge className="bg-marchant-red text-white">Rechazada</Badge>
                                                 )}
-                                    {workOrder.quote?.status === 'partial_reject' && (
-                                        <Badge className="bg-orange-500 text-white">Rechazo Parcial</Badge>
-                                    )}
+                                                {workOrder.quote?.status === 'partial_reject' && (
+                                                    <Badge className="bg-orange-500 text-white">Rechazo Parcial</Badge>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t">
@@ -459,14 +454,14 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                                                 {workOrder.originalAmount && workOrder.originalAmount !== workOrder.totalAmount && (
                                                     <p className="text-yellow-600">(+${(workOrder.totalAmount - workOrder.originalAmount).toLocaleString()})</p>
                                                 )}
-                                    {workOrder.advancePayment && workOrder.advancePayment > 0 ? (
-                                        <>
-                                            <p className="text-blue-600">Abonado: ${workOrder.advancePayment.toLocaleString()}</p>
-                                            <p className="text-marchant-red font-medium">Restante: ${(workOrder.totalAmount - workOrder.advancePayment).toLocaleString()}</p>
-                                        </>
-                                    ) : (
-                                        <p className="text-muted-foreground">Sin abono</p>
-                                    )}
+                                                {workOrder.advancePayment && workOrder.advancePayment > 0 ? (
+                                                    <>
+                                                        <p className="text-blue-600">Abonado: ${workOrder.advancePayment.toLocaleString()}</p>
+                                                        <p className="text-marchant-red font-medium">Restante: ${(workOrder.totalAmount - workOrder.advancePayment).toLocaleString()}</p>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-muted-foreground">Sin abono</p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -483,7 +478,6 @@ const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote }: { onNew
                             {state.workOrders
                                 .filter(wo => wo.status === 'ready_for_delivery')
                                 .sort((a, b) => {
-                                    // Ordenar por fecha estimada de entrega (ascendente)
                                     if (!a.estimatedDeliveryDate && !b.estimatedDeliveryDate) return 0;
                                     if (!a.estimatedDeliveryDate) return 1;
                                     if (!b.estimatedDeliveryDate) return -1;
@@ -594,7 +588,7 @@ const BicyclesTab = ({ onNewBicycleClick }: { onNewBicycleClick: () => void }) =
     const handleUpdateBicycle = () => {
         if (editingBicycle) {
             dispatch({ type: 'UPDATE_BICYCLE', payload: editingBicycle });
-            setEditingBicycle(null); // Cierra el modal
+            setEditingBicycle(null);
         }
     };
 
@@ -778,7 +772,6 @@ const DataTab = () => {
     const [endDate, setEndDate] = useState('');
     const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>([]);
 
-    // Función para filtrar fichas entregadas por rango de fechas
     const filterWorkOrders = () => {
         if (!startDate || !endDate) {
             setFilteredWorkOrders([]);
@@ -787,14 +780,13 @@ const DataTab = () => {
 
         const start = dateFromInput(startDate);
         const end = dateFromInput(endDate);
-        end.setHours(23, 59, 59, 999); // Incluir todo el día final
+        end.setHours(23, 59, 59, 999);
 
         const delivered = state.workOrders.filter(workOrder => {
             if (workOrder.status !== 'completed' || !workOrder.deliveredAt) {
                 return false;
             }
             
-            // Si deliveredAt es un Timestamp, convertirlo a Date
             let deliveryDate = workOrder.deliveredAt;
             if (deliveryDate && typeof deliveryDate.toDate === 'function') {
                 deliveryDate = deliveryDate.toDate();
@@ -803,11 +795,9 @@ const DataTab = () => {
             return deliveryDate >= start && deliveryDate <= end;
         });
 
-        // Ordenar por fecha de entrega descendente
         delivered.sort((a, b) => {
             if (!a.deliveredAt || !b.deliveredAt) return 0;
             
-            // Convertir Timestamps a Date si es necesario
             const dateA = typeof a.deliveredAt.toDate === 'function' ? a.deliveredAt.toDate() : a.deliveredAt;
             const dateB = typeof b.deliveredAt.toDate === 'function' ? b.deliveredAt.toDate() : b.deliveredAt;
             
@@ -817,20 +807,16 @@ const DataTab = () => {
         setFilteredWorkOrders(delivered);
     };
 
-    // Calcular utilidad de una ficha
     const calculateProfit = (workOrder: WorkOrder) => {
         let totalCost = 0;
         let totalRevenue = workOrder.totalAmount;
 
-        // Calcular costos de las piezas
         workOrder.parts.forEach(partItem => {
             let costPrice = 0;
             
-            // Intentar obtener costPrice de la estructura anidada
             if (partItem.part?.costPrice) {
                 costPrice = partItem.part.costPrice;
             } else {
-                // Buscar la pieza en el estado global para obtener el costPrice
                 const fullPart = state.parts.find(p => p.id === partItem.partId);
                 costPrice = fullPart?.costPrice || 0;
             }
@@ -841,20 +827,17 @@ const DataTab = () => {
         return totalRevenue - totalCost;
     };
 
-    // Función para exportar a Excel
     const exportToExcel = () => {
         if (filteredWorkOrders.length === 0) {
             alert('No hay datos para exportar. Primero filtra las fichas.');
             return;
         }
 
-        // Preparar datos para Excel
         const excelData = filteredWorkOrders.map(workOrder => {
             const mechanicName = workOrder.mechanic?.name || 'No asignado';
             const clientName = workOrder.client?.name || 'Cliente no encontrado';
             const bicycleInfo = workOrder.bicycle ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}` : 'Bicicleta no encontrada';
             
-            // Calcular tiempo de trabajo en horas manejando Timestamps
             let workTime = 0;
             if (workOrder.startedAt && workOrder.completedAt) {
                 const startDate = typeof workOrder.startedAt.toDate === 'function' 
@@ -866,11 +849,9 @@ const DataTab = () => {
                 workTime = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) * 100) / 100;
             }
 
-            // Listar servicios y piezas
             const services = workOrder.services.map(s => `${s.service?.name || 'Servicio desconocido'} (x${s.quantity})`).join(', ');
             const parts = workOrder.parts.map(p => `${p.part?.name || 'Pieza desconocida'} (x${p.quantity})`).join(', ');
 
-            // Convertir deliveredAt si es Timestamp
             const deliveryDate = workOrder.deliveredAt && typeof workOrder.deliveredAt.toDate === 'function'
                 ? workOrder.deliveredAt.toDate()
                 : workOrder.deliveredAt;
@@ -890,11 +871,9 @@ const DataTab = () => {
             };
         });
 
-        // Convertir a CSV (simulación de Excel)
         const headers = Object.keys(excelData[0]).join(',');
         const csvContent = [headers, ...excelData.map(row => Object.values(row).join(','))].join('\n');
         
-        // Descargar archivo
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
@@ -978,7 +957,6 @@ const DataTab = () => {
                                             ? `${workOrder.bicycle.brand} ${workOrder.bicycle.model}`
                                             : 'Bicicleta no encontrada';
                                         
-                                        // Calcular tiempo de trabajo manejando Timestamps
                                         let workTime = 0;
                                         if (workOrder.startedAt && workOrder.completedAt) {
                                             const startDate = typeof workOrder.startedAt.toDate === 'function' 
@@ -1081,9 +1059,8 @@ const DataTab = () => {
     );
 };
 
-// --- COMPONENTE PRINCIPAL ---
-
 export default function AdminDashboard() {
+    const { dispatch } = useApp();
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedWorkOrderForQuote, setSelectedWorkOrderForQuote] = useState<WorkOrder | null>(null);
 
@@ -1091,6 +1068,25 @@ export default function AdminDashboard() {
     const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
     const [showAddClientModal, setShowAddClientModal] = useState(false);
     const [showAddBicycleModal, setShowAddBicycleModal] = useState(false);
+
+    /**
+     * Carga los datos iniciales y esenciales para el funcionamiento
+     * de los formularios, como servicios y piezas.
+     */
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const servicesData = await getServices();
+                const partsData = await getParts();
+                dispatch({ type: 'SET_SERVICES', payload: servicesData });
+                dispatch({ type: 'SET_PARTS', payload: partsData });
+            } catch (error) {
+                console.error("Error fetching initial data:", error);
+            }
+        };
+
+        fetchInitialData();
+    }, [dispatch]);
 
     return (
         <div className="p-6">
@@ -1125,8 +1121,6 @@ export default function AdminDashboard() {
                 </TabsContent>
 
             </Tabs>
-
-            {/* --- GESTIÓN CENTRALIZADA DE TODOS LOS MODALES --- */}
 
             <Dialog open={showAddWorkOrderModal} onOpenChange={(isOpen) => {
                 setShowAddWorkOrderModal(isOpen);
