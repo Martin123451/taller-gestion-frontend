@@ -30,16 +30,16 @@ const callFunction = async (functionName, data) => {
 };
 
 export const getUsers = async () => {
-    const querySnapshot = await getDocs(usersCollection);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const querySnapshot = await getDocs(usersCollection);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
 export const getUserById = async (uid) => {
-    const userDoc = await getDoc(doc(db, "users", uid));
-    if (userDoc.exists()) {
-        return { id: doc.id, ...userDoc.data() };
-    }
-    return null;
+  const userDoc = await getDoc(doc(db, "users", uid));
+  if (userDoc.exists()) {
+    return { id: userDoc.id, ...userDoc.data() };
+  }
+  return null;
 };
 
 export const createUser = async (userData) => {
@@ -47,8 +47,8 @@ export const createUser = async (userData) => {
 };
 
 export const updateUser = async (uid, dataToUpdate) => {
-    const userDoc = doc(db, "users", uid);
-    await updateDoc(userDoc, dataToUpdate);
+  const userDoc = doc(db, "users", uid);
+  await updateDoc(userDoc, dataToUpdate);
 };
 
 export const deleteUser = async (uid) => {

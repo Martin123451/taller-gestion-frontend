@@ -35,7 +35,7 @@ type AppAction =
   | { type: 'SET_CLIENTS'; payload: Client[] }
   | { type: 'SET_BICYCLES'; payload: Bicycle[] }
   | { type: 'SET_WORK_ORDERS'; payload: WorkOrder[] }
-  | { type: 'START_WORK_ORDER'; payload: { workOrderId: string; mechanicId: string } }
+  | { type: 'START_WORK_ORDER'; payload: { workOrderId: string; mechanicId: string; mechanic: User } }
   | { type: 'COMPLETE_WORK_ORDER'; payload: string }
   | { type: 'UPDATE_PART'; payload: PartItem }
   | { type: 'SEND_QUOTE'; payload: { workOrderId: string } }
@@ -136,7 +136,7 @@ function appReducer(state: Omit<AppState, 'currentUser'>, action: AppAction): Om
         ...state,
         workOrders: state.workOrders.map(wo => 
           wo.id === action.payload.workOrderId 
-            ? { ...wo, status: 'in_progress', startedAt: new Date(), mechanicId: action.payload.mechanicId } 
+            ? { ...wo, status: 'in_progress', startedAt: new Date(), mechanicId: action.payload.mechanicId, mechanic: action.payload.mechanic} 
             : wo
         ),
       };

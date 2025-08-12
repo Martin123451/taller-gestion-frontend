@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'; // <-- AÑADIDO: useEffect
+import React, { useState, useEffect } from 'react';
 import { useApp } from './../contexts/AppContext';
-import { WorkOrder, WorkOrderService, WorkOrderPart, PartItem } from './../lib/types'; // <-- AÑADIDO: PartItem
+import { useAuthContext } from './../contexts/AuthContext';
+import { WorkOrder, WorkOrderService, WorkOrderPart, PartItem } from './../lib/types';
 import { getParts, updatePartStock } from './../services/parts';
 
 import { Button } from './ui/button';
@@ -24,7 +25,7 @@ interface StockUpdate {
 
 export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
     const { state, dispatch } = useApp();
-    const { currentUser } = state;
+    const { currentUser } = useAuthContext();
 
     const [services, setServices] = useState<WorkOrderService[]>(workOrder.services || []);
     const [parts, setParts] = useState<WorkOrderPart[]>(workOrder.parts || []);
@@ -48,7 +49,28 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
       };
 
       fetchFreshParts();
-    }, []);
+    }, [state.parts]);
+
+    const handleStartWorkOrder = () => {
+    
+        if (!currentUser) {
+          alert('Error: No se ha podido identificar al usuario. Por favor, recarga la página e intenta de nuevo.');
+          return;
+        }
+    
+        const payload = {
+          workOrderId: workOrder.id,
+          mechanicId: currentUser.id,
+          mechanic: currentUser
+        };
+        
+        if (!payload.mechanicId) {
+            alert('Error: El ID del mecánico es indefinido. No se puede iniciar el trabajo.');
+            return;
+        }
+
+        dispatch({ type: 'START_WORK_ORDER', payload });
+      };
 
     const addService = (serviceId: string) => {
       const serviceToAdd = state.services.find(s => s.id === serviceId);
@@ -121,7 +143,6 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
     };
 
     const saveChanges = async () => {
-        // La lógica para calcular los cambios de stock que ya funciona se mantiene intacta
         const stockUpdates: StockUpdate[] = [];
         const originalParts = workOrder.parts || [];
 
@@ -148,7 +169,6 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             }
             const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
             
-            // Hacemos una copia de la ficha para añadir la nueva lógica
             const updatedWorkOrder: WorkOrder = {
                 ...workOrder,
                 services,
@@ -158,31 +178,22 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                 updatedAt: new Date()
             };
 
-            // ====================================================================
-            // ESTA ES LA LÓGICA CLAVE CORREGIDA
-            // ====================================================================
             if (workOrder.status === 'open') {
-                // Si la ficha está abierta, todo lo que se añade es parte del trabajo original.
                 updatedWorkOrder.originalServices = services;
                 updatedWorkOrder.originalParts = parts;
                 updatedWorkOrder.originalAmount = totalAmount;
-                updatedWorkOrder.needsQuote = false; // No se necesita cotización.
+                updatedWorkOrder.needsQuote = false;
             } else if (workOrder.status === 'in_progress') {
-                // Si la ficha ya está en progreso, comparamos para ver si hay trabajo adicional.
                 const originalItemCount = (workOrder.originalServices?.length || 0) + (workOrder.originalParts?.length || 0);
                 const currentItemCount = services.length + parts.length;
 
-                // Si se añadieron nuevos ítems (no solo se cambiaron cantidades), se necesita cotización.
                 if (currentItemCount > originalItemCount) {
                     updatedWorkOrder.needsQuote = true;
                 }
             }
-            // ====================================================================
 
-            // Despachamos la ficha actualizada al "cerebro" de la app
             dispatch({ type: 'UPDATE_WORK_ORDER', payload: updatedWorkOrder });
             
-            // Refrescamos la lista de piezas para tener el stock actualizado
             const updatedPartsFromDB = await getParts();
             dispatch({ type: 'SET_PARTS', payload: updatedPartsFromDB });
             
@@ -197,7 +208,6 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
 
     const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
 
-    // Lógica para determinar el estado de la cotización y qué trabajos realizar
     const hasQuotePending = workOrder.needsQuote && (!workOrder.quote || workOrder.quote.status === 'pending' || workOrder.quote.status === 'sent');
     const canComplete = !hasQuotePending;
     
@@ -263,7 +273,6 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           </DialogDescription>
         </DialogHeader>
 
-        {/* Estado de la cotización */}
         {workOrder.needsQuote && (
           <div className="p-4 border rounded-lg bg-blue-50 border-blue-200 mt-4">
             <div className="flex items-center gap-2 mb-2">
@@ -362,7 +371,16 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={saveChanges} className="border-marchant-green text-marchant-green hover:bg-marchant-green-light">Guardar Cambios</Button>
-              {workOrder.status === 'open' && (<Button onClick={() => dispatch({ type: 'START_WORK_ORDER', payload: { workOrderId: workOrder.id, mechanicId: currentUser!.id } })} className="bg-marchant-green hover:bg-marchant-green-dark"><Play className="h-4 w-4 mr-2" />Iniciar Trabajo</Button>)}
+              {workOrder.status === 'open' && (
+                <Button 
+                  onClick={handleStartWorkOrder} 
+                  disabled={!currentUser}
+                  className="bg-marchant-green hover:bg-marchant-green-dark"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Iniciar Trabajo
+                </Button>
+              )}
               {workOrder.status === 'in_progress' && (
                 <Button 
                   onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} 

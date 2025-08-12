@@ -3,7 +3,6 @@ import { WorkOrder, WorkOrderStatus } from './../lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogTrigger } from './ui/dialog';
-import { useApp } from './../contexts/AppContext';
 import WorkOrderDetail from './WorkOrderDetail';
 
 interface WorkOrderCardProps {
@@ -13,14 +12,6 @@ interface WorkOrderCardProps {
 }
 
 const WorkOrderCardComponent = ({ workOrder, isSelected, onSelect }: WorkOrderCardProps) => {
-  const { state } = useApp();
-  
-  // Obtener el nombre del mecánico si está asignado
-  const getMechanicName = () => {
-    if (!workOrder.mechanicId) return null;
-    const mechanic = state.users.find(user => user.id === workOrder.mechanicId);
-    return mechanic?.name || 'Mecánico no encontrado';
-  };
 
   const translateStatus = (status: WorkOrderStatus) => {
     switch (status) {
@@ -41,6 +32,7 @@ const WorkOrderCardComponent = ({ workOrder, isSelected, onSelect }: WorkOrderCa
   };
 
   const statusBadge = getStatusBadgeVariant(workOrder.status);
+  const mechanicName = workOrder.mechanic?.name;
 
   return (
     <Dialog open={isSelected} onOpenChange={(isOpen) => onSelect(isOpen ? workOrder : null)}>
@@ -51,8 +43,8 @@ const WorkOrderCardComponent = ({ workOrder, isSelected, onSelect }: WorkOrderCa
               <div>
                 <CardTitle className="text-sm text-marchant-green">{workOrder.client?.name || 'Cliente no encontrado'}</CardTitle>
                 <p className="text-xs text-muted-foreground">{workOrder.bicycle?.brand} {workOrder.bicycle?.model}</p>
-                {(workOrder.status === 'in_progress' || workOrder.status === 'ready_for_delivery') && getMechanicName() && (
-                  <p className="text-xs text-marchant-red font-medium">🔧 {getMechanicName()}</p>
+                {(workOrder.status === 'in_progress' || workOrder.status === 'ready_for_delivery') && mechanicName && (
+                  <p className="text-xs text-marchant-red font-medium">🔧 {mechanicName}</p>
                 )}
               </div>
               <Badge variant={statusBadge.variant as any} className={statusBadge.className}>
