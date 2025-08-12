@@ -105,9 +105,21 @@ export interface WorkOrder {
     sentAt?: Date;
     respondedAt?: Date;
     clientResponse?: string;
+    // Mantener rejectedItems para compatibilidad hacia atrás
     rejectedItems?: {
       services: string[];
       parts: string[];
+    };
+    // Nueva estructura para items aprobados con cantidades
+    approvedItems?: {
+      services: Array<{
+        id: string;
+        approvedQuantity: number;
+      }>;
+      parts: Array<{
+        id: string;
+        approvedQuantity: number;
+      }>;
     };
   };
 }

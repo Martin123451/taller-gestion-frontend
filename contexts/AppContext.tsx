@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { AppState, User, Client, Bicycle, WorkOrder, ServiceItem, PartItem, WorkOrderStatus } from '../lib/types';
 import { getServices, createService, updateService, deleteService } from '../services/services';
-import { getParts, createPart, updatePart, deletePart } from '../services/parts';
+import { getParts, createPart, updatePart, deletePart, reintegratePartStock } from '../services/parts';
 import { getClients, createClient, updateClient, deleteClient } from '../services/clients';
 import { getBicycles, createBicycle, updateBicycle, deleteBicycle } from '../services/bicycles';
 import { getWorkOrders, createWorkOrder, startWorkOnOrder, completeWorkOnOrder, updateWorkOrder, deleteWorkOrder } from '../services/workOrders';
 import { getUsers } from '../services/users';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '../firebase/config';
+
+// Set para rastrear operaciones de reintegración de stock ya procesadas
+const processedStockReintegrations = new Set();
 
 type AppAction =
   | { type: 'SET_USERS'; payload: User[] }
@@ -39,7 +42,16 @@ type AppAction =
   | { type: 'COMPLETE_WORK_ORDER'; payload: string }
   | { type: 'UPDATE_PART'; payload: PartItem }
   | { type: 'SEND_QUOTE'; payload: { workOrderId: string } }
-  | { type: 'RESPOND_TO_QUOTE'; payload: { workOrderId: string; response: 'approved' | 'rejected' | 'partial_reject'; notes?: string; rejectedItems?: { services: string[]; parts: string[]; } } };
+  | { type: 'RESPOND_TO_QUOTE'; payload: { 
+      workOrderId: string; 
+      response: 'approved' | 'rejected' | 'partial_reject'; 
+      notes?: string; 
+      rejectedItems?: { services: string[]; parts: string[] }; 
+      approvedItems?: { 
+        services: Array<{ id: string; approvedQuantity: number }>; 
+        parts: Array<{ id: string; approvedQuantity: number }> 
+      } 
+    } };
 
 const initialState: Omit<AppState, 'currentUser'> = {
   users: [],
@@ -275,20 +287,90 @@ function appReducer(state: Omit<AppState, 'currentUser'>, action: AppAction): Om
       newTotalAmount = workOrder.originalAmount || 0;
       // No eliminamos los items, solo ajustamos el total
     } 
-    // Si es rechazo parcial, calcular el total solo con items aprobados
-    else if (action.payload.response === 'partial_reject' && action.payload.rejectedItems) {
-      const rejectedServiceIds = action.payload.rejectedItems.services || [];
-      const rejectedPartIds = action.payload.rejectedItems.parts || [];
-      
-      // Calcular total solo con items aprobados (no rechazados)
-      const approvedServices = workOrder.services.filter(s => !rejectedServiceIds.includes(s.id));
-      const approvedParts = workOrder.parts.filter(p => !rejectedPartIds.includes(p.id));
-      
-      const servicesTotal = approvedServices.reduce((sum, s) => sum + s.price, 0);
-      const partsTotal = approvedParts.reduce((sum, p) => sum + p.price, 0);
-      newTotalAmount = servicesTotal + partsTotal;
-      
-      // Mantenemos todos los items pero guardamos cuáles fueron rechazados
+    // Si es aprobación parcial, calcular el total con la nueva lógica de items aprobados
+    else if (action.payload.response === 'partial_reject') {
+      if (action.payload.approvedItems) {
+        // Nueva lógica con cantidades aprobadas
+        let servicesTotal = (workOrder.originalServices || []).reduce((sum, s) => sum + s.price, 0);
+        let partsTotal = (workOrder.originalParts || []).reduce((sum, p) => sum + p.price, 0);
+        
+        // Agregar items adicionales aprobados con sus cantidades
+        action.payload.approvedItems.services.forEach(approvedService => {
+          const originalService = workOrder.services.find(s => s.id === approvedService.id);
+          if (originalService) {
+            const unitPrice = originalService.price / originalService.quantity;
+            servicesTotal += unitPrice * approvedService.approvedQuantity;
+          }
+        });
+        
+        // Recopilar las reintegraciones de stock para ejecutar después del update
+        const stockReintegrations = [];
+        
+        action.payload.approvedItems.parts.forEach(approvedPart => {
+          const originalPart = workOrder.parts.find(p => p.id === approvedPart.id);
+          if (originalPart) {
+            const unitPrice = originalPart.price / originalPart.quantity;
+            partsTotal += unitPrice * approvedPart.approvedQuantity;
+            
+            // CRÍTICO: Reintegrar stock no utilizado
+            const unusedQuantity = originalPart.quantity - approvedPart.approvedQuantity;
+            console.log(`[STOCK DEBUG] Pieza ${originalPart.part?.name} (ID: ${originalPart.partId}): cantidad original ${originalPart.quantity}, aprobada ${approvedPart.approvedQuantity}, no utilizada ${unusedQuantity}`);
+            
+            if (unusedQuantity > 0) {
+              stockReintegrations.push({
+                partId: originalPart.partId,
+                quantity: unusedQuantity,
+                partName: originalPart.part?.name
+              });
+            }
+          }
+        });
+        
+        // Ejecutar reintegraciones después del dispatch para evitar doble ejecución
+        if (stockReintegrations.length > 0) {
+          setTimeout(() => {
+            stockReintegrations.forEach(({ partId, quantity, partName }) => {
+              // Crear clave única para esta operación
+              const operationKey = `${action.payload.workOrderId}-${partId}-${quantity}`;
+              
+              // Solo ejecutar si no se ha procesado antes
+              if (!processedStockReintegrations.has(operationKey)) {
+                processedStockReintegrations.add(operationKey);
+                
+                reintegratePartStock(partId, quantity)
+                  .then(() => {
+                    console.log(`Stock reintegrado: ${quantity} unidades de ${partName}`);
+                    // Limpiar la clave después de un tiempo para permitir futuras operaciones
+                    setTimeout(() => {
+                      processedStockReintegrations.delete(operationKey);
+                    }, 5000);
+                  })
+                  .catch((error) => {
+                    console.error('Error al reintegrar stock:', error);
+                    // También limpiar en caso de error
+                    processedStockReintegrations.delete(operationKey);
+                  });
+              } else {
+                console.log(`[STOCK DEBUG] Operación duplicada evitada para ${partName}`);
+              }
+            });
+          }, 0);
+        }
+        
+        newTotalAmount = servicesTotal + partsTotal;
+      } else if (action.payload.rejectedItems) {
+        // Lógica legacy para compatibilidad hacia atrás
+        const rejectedServiceIds = action.payload.rejectedItems.services || [];
+        const rejectedPartIds = action.payload.rejectedItems.parts || [];
+        
+        // Calcular total solo con items aprobados (no rechazados)
+        const approvedServices = workOrder.services.filter(s => !rejectedServiceIds.includes(s.id));
+        const approvedParts = workOrder.parts.filter(p => !rejectedPartIds.includes(p.id));
+        
+        const servicesTotal = approvedServices.reduce((sum, s) => sum + s.price, 0);
+        const partsTotal = approvedParts.reduce((sum, p) => sum + p.price, 0);
+        newTotalAmount = servicesTotal + partsTotal;
+      }
     }
 
     // Actualizar en Firebase
@@ -300,9 +382,14 @@ function appReducer(state: Omit<AppState, 'currentUser'>, action: AppAction): Om
       clientResponse: action.payload.notes
     };
 
-    // Solo agregar rejectedItems si no es undefined
+    // Solo agregar rejectedItems si no es undefined (compatibilidad hacia atrás)
     if (action.payload.rejectedItems !== undefined) {
       quoteUpdate.rejectedItems = action.payload.rejectedItems;
+    }
+    
+    // Agregar approvedItems si está presente (nueva funcionalidad)
+    if (action.payload.approvedItems !== undefined) {
+      quoteUpdate.approvedItems = action.payload.approvedItems;
     }
 
     const updateData = {
@@ -356,7 +443,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_CLIENTS', payload: clientsData });
           dispatch({ type: 'SET_USERS', payload: usersData });
           dispatch({ type: 'SET_BICYCLES', payload: bicyclesData });
+          dispatch({ type: 'SET_SERVICES', payload: servicesData });
+          dispatch({ type: 'SET_PARTS', payload: partsData });
           console.log("Bicicletas cargadas:", bicyclesData.length);
+          console.log("Servicios cargados:", servicesData.length);
+          console.log("Partes cargadas:", partsData.length);
         }
 
         // --- Carga de Fichas de Trabajo ---

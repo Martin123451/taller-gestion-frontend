@@ -88,3 +88,28 @@ export const updatePartStock = async (stockUpdates) => {
         throw error;
     }
 };
+
+// Nueva función para reintegrar stock cuando items son parcialmente rechazados
+export const reintegratePartStock = async (partId, quantityToReintegrate) => {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const partRef = doc(db, "parts", partId);
+            const partDoc = await transaction.get(partRef);
+
+            if (!partDoc.exists()) {
+                throw `La pieza con ID ${partId} no existe.`;
+            }
+
+            const currentStock = partDoc.data().stock || 0;
+            const newStock = currentStock + quantityToReintegrate;
+
+            console.log(`[STOCK DEBUG] Reintegrar pieza ${partId}: stock actual ${currentStock} + cantidad ${quantityToReintegrate} = nuevo stock ${newStock}`);
+            
+            transaction.update(partRef, { stock: newStock });
+        });
+        console.log(`Stock reintegrado: ${quantityToReintegrate} unidades de pieza ${partId}`);
+    } catch (error) {
+        console.error("Error al reintegrar stock: ", error);
+        throw error;
+    }
+};

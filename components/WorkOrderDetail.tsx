@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from './../contexts/AppContext';
 import { useAuthContext } from './../contexts/AuthContext';
 import { WorkOrder, WorkOrderService, WorkOrderPart, PartItem } from './../lib/types';
@@ -106,7 +106,16 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
       setServices(services.map(s => {
         if (s.id === serviceListItemId) {
           const basePrice = s.service?.price || 0;
-          return { ...s, quantity, price: basePrice * quantity };
+          
+          // Si es un item con aprobación parcial, usar cantidad aprobada
+          const approvedQuantity = workOrder.quote?.approvedItems?.services.find(approvedService => 
+            approvedService.id === serviceListItemId
+          )?.approvedQuantity;
+          
+          const displayQuantity = approvedQuantity !== undefined ? approvedQuantity : quantity;
+          const displayPrice = basePrice * displayQuantity;
+          
+          return { ...s, quantity: displayQuantity, price: displayPrice };
         }
         return s;
       }));
@@ -128,7 +137,16 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           }
           const basePrice = p.part?.price || 0;
           const newQuantity = Math.max(1, quantity);
-          return { ...p, quantity: newQuantity, price: basePrice * newQuantity };
+          
+          // Si es un item con aprobación parcial, usar cantidad aprobada
+          const approvedQuantity = workOrder.quote?.approvedItems?.parts.find(approvedPart => 
+            approvedPart.id === partListItemId
+          )?.approvedQuantity;
+          
+          const displayQuantity = approvedQuantity !== undefined ? approvedQuantity : newQuantity;
+          const displayPrice = basePrice * displayQuantity;
+          
+          return { ...p, quantity: displayQuantity, price: displayPrice };
         }
         return p;
       }));
@@ -167,13 +185,14 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             if (stockUpdates.length > 0) {
                 await updatePartStock(stockUpdates);
             }
-            const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
+            // Usar el total que ya está calculado considerando items rechazados
+            const calculatedTotal = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
             
             const updatedWorkOrder: WorkOrder = {
                 ...workOrder,
                 services,
                 parts,
-                totalAmount,
+                totalAmount: calculatedTotal,
                 mechanicNotes,
                 updatedAt: new Date()
             };
@@ -181,7 +200,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             if (workOrder.status === 'open') {
                 updatedWorkOrder.originalServices = services;
                 updatedWorkOrder.originalParts = parts;
-                updatedWorkOrder.originalAmount = totalAmount;
+                updatedWorkOrder.originalAmount = calculatedTotal;
                 updatedWorkOrder.needsQuote = false;
             } else if (workOrder.status === 'in_progress') {
                 const originalItemCount = (workOrder.originalServices?.length || 0) + (workOrder.originalParts?.length || 0);
@@ -206,11 +225,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
         }
     };
 
-    const totalAmount = [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
-
-    const hasQuotePending = workOrder.needsQuote && (!workOrder.quote || workOrder.quote.status === 'pending' || workOrder.quote.status === 'sent');
-    const canComplete = !hasQuotePending;
-    
+    // Funciones necesarias para el cálculo de total
     const getQuoteStatus = () => {
       if (!workOrder.needsQuote) return null;
       if (!workOrder.quote) return 'pending';
@@ -225,6 +240,83 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
       return rejectedIds.includes(itemId);
     };
 
+    const isOriginalItem = (itemId: string, itemType: 'service' | 'part') => {
+      const originalItems = itemType === 'service' 
+        ? (workOrder.originalServices || [])
+        : (workOrder.originalParts || []);
+      return originalItems.some(item => item.id === itemId);
+    };
+
+    // Función para obtener la cantidad efectiva de un item (considerando aprobaciones parciales)
+    const getEffectiveQuantity = (itemId: string, itemType: 'service' | 'part', originalQuantity: number) => {
+        const quoteStatus = getQuoteStatus();
+        
+        // Si no hay cotización o no está en aprobación parcial, usar cantidad original
+        if (!quoteStatus || quoteStatus !== 'partial_reject' || !workOrder.quote?.approvedItems) {
+            return originalQuantity;
+        }
+        
+        // Si es aprobación parcial, usar cantidad aprobada
+        const approvedItems = itemType === 'service' 
+            ? workOrder.quote.approvedItems.services 
+            : workOrder.quote.approvedItems.parts;
+            
+        const approvedItem = approvedItems.find(item => item.id === itemId);
+        return approvedItem ? approvedItem.approvedQuantity : 0;
+    };
+
+    // Calcular el total excluyendo items rechazados usando useMemo
+    const totalAmount = useMemo(() => {
+        const quoteStatus = getQuoteStatus();
+        
+        // Si no hay cotización o está pendiente/enviada, mostrar el total completo
+        if (!quoteStatus || quoteStatus === 'pending' || quoteStatus === 'sent') {
+            return [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
+        }
+        
+        // Si la cotización fue rechazada completamente, usar solo items originales
+        if (quoteStatus === 'rejected') {
+            const approvedServices = services.filter(s => isOriginalItem(s.id, 'service'));
+            const approvedParts = parts.filter(p => isOriginalItem(p.id, 'part'));
+            return [...approvedServices, ...approvedParts].reduce((sum, item) => sum + item.price, 0);
+        }
+        
+        // Si es aprobación parcial, usar cantidades aprobadas reales
+        if (quoteStatus === 'partial_reject') {
+            let total = 0;
+            
+            // Servicios: sumar originales + aprobados adicionales con cantidades reales
+            services.forEach(service => {
+                if (isOriginalItem(service.id, 'service')) {
+                    total += service.price; // Items originales siempre cuentan
+                } else {
+                    const effectiveQuantity = getEffectiveQuantity(service.id, 'service', service.quantity);
+                    const unitPrice = service.price / service.quantity;
+                    total += unitPrice * effectiveQuantity;
+                }
+            });
+            
+            // Piezas: sumar originales + aprobadas adicionales con cantidades reales
+            parts.forEach(part => {
+                if (isOriginalItem(part.id, 'part')) {
+                    total += part.price; // Items originales siempre cuentan
+                } else {
+                    const effectiveQuantity = getEffectiveQuantity(part.id, 'part', part.quantity);
+                    const unitPrice = part.price / part.quantity;
+                    total += unitPrice * effectiveQuantity;
+                }
+            });
+            
+            return total;
+        }
+        
+        // Si está aprobada, incluir todo
+        return [...services, ...parts].reduce((sum, item) => sum + item.price, 0);
+    }, [services, parts, workOrder.quote, workOrder.needsQuote, workOrder.originalServices, workOrder.originalParts]);
+
+    const hasQuotePending = workOrder.needsQuote && (!workOrder.quote || workOrder.quote.status === 'pending' || workOrder.quote.status === 'sent');
+    const canComplete = !hasQuotePending;
+
     const getItemStatus = (itemId: string, itemType: 'service' | 'part') => {
       const quoteStatus = getQuoteStatus();
       if (!quoteStatus || quoteStatus === 'pending' || quoteStatus === 'sent') {
@@ -238,12 +330,43 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
       return 'pending';
     };
 
-    const isOriginalItem = (itemId: string, itemType: 'service' | 'part') => {
-      const originalItems = itemType === 'service' 
-        ? (workOrder.originalServices || [])
-        : (workOrder.originalParts || []);
-      return originalItems.some(item => item.id === itemId);
+    // Función para obtener colores de card según estado del item
+    const getItemCardClasses = (itemId: string, itemType: 'service' | 'part') => {
+      const isOriginal = isOriginalItem(itemId, itemType);
+      
+      if (isOriginal) {
+        // Items originales siempre en gris
+        return {
+          border: 'border-l-gray-400',
+          background: 'bg-gray-50'
+        };
+      }
+      
+      const status = getItemStatus(itemId, itemType);
+      switch (status) {
+        case 'approved':
+          return {
+            border: 'border-l-green-500',
+            background: 'bg-green-50'
+          };
+        case 'rejected':
+          return {
+            border: 'border-l-red-500',
+            background: 'bg-red-50'
+          };
+        case 'pending':
+          return {
+            border: 'border-l-orange-500',
+            background: 'bg-orange-50'
+          };
+        default:
+          return {
+            border: 'border-l-gray-400',
+            background: 'bg-gray-50'
+          };
+      }
     };
+
 
     const getItemBadge = (itemId: string, itemType: 'service' | 'part') => {
       const isOriginal = isOriginalItem(itemId, itemType);
@@ -288,7 +411,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
               {getQuoteStatus() === 'sent' && 'Cotización enviada al cliente - esperando respuesta'}
               {getQuoteStatus() === 'approved' && 'Cotización aprobada - realizar todos los trabajos adicionales'}
               {getQuoteStatus() === 'rejected' && 'Cotización rechazada - solo realizar trabajo original'}
-              {getQuoteStatus() === 'partial_reject' && 'Rechazo parcial - revisar qué trabajos realizar'}
+              {getQuoteStatus() === 'partial_reject' && 'Aprobación parcial - revisar qué trabajos realizar'}
             </p>
           </div>
         )}
@@ -303,27 +426,61 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-marchant-green">Servicios</h4>
               <Select onValueChange={addService}>
-                <SelectTrigger className="w-48"><SelectValue placeholder="Agregar servicio" /></SelectTrigger>
-                <SelectContent>{state.services.map(service => (<SelectItem key={service.id} value={service.id}>{service.name} - ${service.price.toLocaleString()}</SelectItem>))}</SelectContent>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder={state.services.length > 0 ? "Agregar servicio" : "Cargando servicios..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  {state.services.length === 0 ? (
+                    <SelectItem value="no-services" disabled>No hay servicios disponibles</SelectItem>
+                  ) : (
+                    state.services.map(service => (
+                      <SelectItem key={service.id} value={service.id}>
+                        {service.name} - ${service.price.toLocaleString()}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
               </Select>
             </div>
-            {services.map(service => (
-              <div key={service.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-green rounded mb-2 bg-marchant-green-light">
+            {services.map(service => {
+              const cardClasses = getItemCardClasses(service.id, 'service');
+              const effectiveQuantity = getEffectiveQuantity(service.id, 'service', service.quantity);
+              const isPartiallyApproved = getQuoteStatus() === 'partial_reject' && !isOriginalItem(service.id, 'service');
+              const canEdit = getQuoteStatus() !== 'partial_reject' || isOriginalItem(service.id, 'service');
+              
+              return (
+                <div key={service.id} className={`flex items-center justify-between p-3 border-l-4 ${cardClasses.border} rounded mb-2 ${cardClasses.background}`}>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm">{service.service?.name || 'Servicio no encontrado'}</p>
                     {getItemBadge(service.id, 'service')}
+                    {isPartiallyApproved && effectiveQuantity !== service.quantity && (
+                      <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">
+                        Aprobado: {effectiveQuantity}/{service.quantity}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">${(service.price / service.quantity).toLocaleString()} c/u</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => updateServiceQuantity(service.id, Math.max(1, service.quantity - 1))}><Minus className="h-3 w-3" /></Button>
-                  <span className="w-8 text-center text-sm">{service.quantity}</span>
-                  <Button variant="outline" size="sm" onClick={() => updateServiceQuantity(service.id, service.quantity + 1)}><Plus className="h-3 w-3" /></Button>
-                  <Button variant="destructive" size="sm" onClick={() => removeService(service.id)} className="bg-marchant-red hover:bg-marchant-red-dark"><Minus className="h-3 w-3" /></Button>
+                  {canEdit ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => updateServiceQuantity(service.id, Math.max(1, service.quantity - 1))}><Minus className="h-3 w-3" /></Button>
+                      <span className="w-8 text-center text-sm">{service.quantity}</span>
+                      <Button variant="outline" size="sm" onClick={() => updateServiceQuantity(service.id, service.quantity + 1)}><Plus className="h-3 w-3" /></Button>
+                      <Button variant="destructive" size="sm" onClick={() => removeService(service.id)} className="bg-marchant-red hover:bg-marchant-red-dark"><Minus className="h-3 w-3" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">Cantidad aprobada:</span>
+                      <span className="w-8 text-center text-sm font-bold text-green-600">{effectiveQuantity}</span>
+                      <span className="text-xs text-muted-foreground">de {service.quantity}</span>
+                    </>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           <Separator />
           <div>
@@ -342,23 +499,45 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                 </SelectContent>
               </Select>
             </div>
-            {parts.map(part => (
-              <div key={part.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-red rounded mb-2 bg-marchant-red-light">
+            {parts.map(part => {
+              const cardClasses = getItemCardClasses(part.id, 'part');
+              const effectiveQuantity = getEffectiveQuantity(part.id, 'part', part.quantity);
+              const isPartiallyApproved = getQuoteStatus() === 'partial_reject' && !isOriginalItem(part.id, 'part');
+              const canEdit = getQuoteStatus() !== 'partial_reject' || isOriginalItem(part.id, 'part');
+              
+              return (
+                <div key={part.id} className={`flex items-center justify-between p-3 border-l-4 ${cardClasses.border} rounded mb-2 ${cardClasses.background}`}>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm">{part.part?.name || 'Pieza no encontrada'}</p>
                     {getItemBadge(part.id, 'part')}
+                    {isPartiallyApproved && effectiveQuantity !== part.quantity && (
+                      <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">
+                        Aprobado: {effectiveQuantity}/{part.quantity}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">${(part.price / part.quantity).toLocaleString()} c/u</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => updatePartQuantity(part.id, Math.max(1, part.quantity - 1))}><Minus className="h-3 w-3" /></Button>
-                  <span className="w-8 text-center text-sm">{part.quantity}</span>
-                  <Button variant="outline" size="sm" onClick={() => updatePartQuantity(part.id, part.quantity + 1)}><Plus className="h-3 w-3" /></Button>
-                  <Button variant="destructive" size="sm" onClick={() => removePart(part.id)} className="bg-marchant-red hover:bg-marchant-red-dark"><Minus className="h-3 w-3" /></Button>
+                  {canEdit ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => updatePartQuantity(part.id, Math.max(1, part.quantity - 1))}><Minus className="h-3 w-3" /></Button>
+                      <span className="w-8 text-center text-sm">{part.quantity}</span>
+                      <Button variant="outline" size="sm" onClick={() => updatePartQuantity(part.id, part.quantity + 1)}><Plus className="h-3 w-3" /></Button>
+                      <Button variant="destructive" size="sm" onClick={() => removePart(part.id)} className="bg-marchant-red hover:bg-marchant-red-dark"><Minus className="h-3 w-3" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">Cantidad aprobada:</span>
+                      <span className="w-8 text-center text-sm font-bold text-green-600">{effectiveQuantity}</span>
+                      <span className="text-xs text-muted-foreground">de {part.quantity}</span>
+                    </>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           <Separator />
           <div>

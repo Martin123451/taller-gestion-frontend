@@ -19,10 +19,10 @@ interface QuoteDetailDialogProps {
 export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: QuoteDetailDialogProps) {
   const { dispatch } = useApp();
   const [responseNotes, setResponseNotes] = React.useState('');
-  const [showPartialRejectModal, setShowPartialRejectModal] = React.useState(false);
-  const [selectedRejectedItems, setSelectedRejectedItems] = React.useState<{
-    services: string[];
-    parts: string[];
+  const [showPartialApprovalModal, setShowPartialApprovalModal] = React.useState(false);
+  const [selectedApprovedItems, setSelectedApprovedItems] = React.useState<{
+    services: Array<{ id: string; approvedQuantity: number }>;
+    parts: Array<{ id: string; approvedQuantity: number }>;
   }>({ services: [], parts: [] });
 
   // ====================================================================
@@ -46,7 +46,7 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
   // Calcular el monto adicional real (sin items rechazados)
   const additionalAmount = workOrder.totalAmount - originalAmount;
   
-  // Calcular el monto rechazado si hay rechazo parcial
+  // Calcular el monto rechazado si hay aprobación parcial
   const rejectedAmount = (() => {
     if (quoteStatus !== 'partial_reject' || !workOrder.quote?.rejectedItems) return 0;
     
@@ -63,6 +63,7 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
     return rejectedServicesTotal + rejectedPartsTotal;
   })();
 
+  // Función para compatibilidad hacia atrás con rejectedItems
   const isItemRejected = (itemId: string, itemType: 'service' | 'part') => {
     if (!workOrder.quote?.rejectedItems) return false;
     const rejectedIds = itemType === 'service' 
@@ -71,10 +72,43 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
     return rejectedIds.includes(itemId);
   };
 
+  // Nuevas funciones para manejar items aprobados
+  const getApprovedQuantity = (itemId: string, itemType: 'service' | 'part', originalQuantity: number) => {
+    if (!workOrder.quote?.approvedItems) {
+      // Si no hay approvedItems, usar lógica legacy
+      if (quoteStatus === 'approved') return originalQuantity;
+      if (quoteStatus === 'rejected') return 0;
+      if (quoteStatus === 'partial_reject') {
+        return isItemRejected(itemId, itemType) ? 0 : originalQuantity;
+      }
+      return originalQuantity;
+    }
+
+    const approvedItems = itemType === 'service' 
+      ? workOrder.quote.approvedItems.services 
+      : workOrder.quote.approvedItems.parts;
+    
+    const approvedItem = approvedItems.find(item => item.id === itemId);
+    return approvedItem ? approvedItem.approvedQuantity : 0;
+  };
+
+  const isItemFullyApproved = (itemId: string, itemType: 'service' | 'part', originalQuantity: number) => {
+    return getApprovedQuantity(itemId, itemType, originalQuantity) === originalQuantity;
+  };
+
+  const isItemPartiallyApproved = (itemId: string, itemType: 'service' | 'part', originalQuantity: number) => {
+    const approvedQty = getApprovedQuantity(itemId, itemType, originalQuantity);
+    return approvedQty > 0 && approvedQty < originalQuantity;
+  };
+
+  const isItemFullyRejected = (itemId: string, itemType: 'service' | 'part', originalQuantity: number) => {
+    return getApprovedQuantity(itemId, itemType, originalQuantity) === 0;
+  };
+
   const getItemBackgroundColor = (isNew: boolean, itemId?: string, itemType?: 'service' | 'part') => {
     if (!isNew) return 'bg-slate-50 border-slate-200';
     
-    // Si es rechazo parcial, verificar si este item específico fue rechazado
+    // Si es aprobación parcial, verificar si este item específico fue rechazado
     if (quoteStatus === 'partial_reject' && itemId && itemType) {
       return isItemRejected(itemId, itemType) 
         ? 'bg-marchant-red-light border-marchant-red' 
@@ -89,7 +123,7 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
   const getItemTextColor = (isNew: boolean, itemId?: string, itemType?: 'service' | 'part') => {
     if (!isNew) return 'text-slate-700';
     
-    // Si es rechazo parcial, verificar si este item específico fue rechazado
+    // Si es aprobación parcial, verificar si este item específico fue rechazado
     if (quoteStatus === 'partial_reject' && itemId && itemType) {
       return isItemRejected(itemId, itemType) 
         ? 'text-marchant-red-dark' 
@@ -107,7 +141,21 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
 
   const handleQuoteResponse = (response: 'approved' | 'rejected' | 'partial_reject') => {
     if (response === 'partial_reject') {
-      setShowPartialRejectModal(true);
+      // Inicializar items seleccionados con cantidades completas por defecto
+      const defaultServices = newServices.map(service => ({
+        id: service.id,
+        approvedQuantity: service.quantity
+      }));
+      const defaultParts = newParts.map(part => ({
+        id: part.id,
+        approvedQuantity: part.quantity
+      }));
+      
+      setSelectedApprovedItems({
+        services: defaultServices,
+        parts: defaultParts
+      });
+      setShowPartialApprovalModal(true);
       return;
     }
     
@@ -123,24 +171,29 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
     onOpenChange(false);
   };
 
-  const handlePartialReject = () => {
+  const handlePartialApproval = () => {
     dispatch({ 
       type: 'RESPOND_TO_QUOTE', 
       payload: { 
         workOrderId: workOrder.id, 
         response: 'partial_reject',
-        rejectedItems: selectedRejectedItems,
+        approvedItems: selectedApprovedItems,
         notes: responseNotes
       }
     });
     setResponseNotes('');
-    setSelectedRejectedItems({ services: [], parts: [] });
-    setShowPartialRejectModal(false);
+    setSelectedApprovedItems({ services: [], parts: [] });
+    setShowPartialApprovalModal(false);
     onOpenChange(false);
   };
 
   const ServiceItemDisplay = ({ service, isNew }: { service: WorkOrderService; isNew: boolean }) => {
     const isRejected = isNew && isItemRejected(service.id, 'service');
+    const approvedQuantity = getApprovedQuantity(service.id, 'service', service.quantity);
+    const displayQuantity = quoteStatus === 'partial_reject' && workOrder.quote?.approvedItems ? approvedQuantity : service.quantity;
+    const unitPrice = service.price / service.quantity;
+    const displayTotal = unitPrice * displayQuantity;
+    
     return (
       <div className={`p-3 rounded-lg border-l-4 ${getItemBackgroundColor(isNew, service.id, 'service')} mb-2`}>
         <div className="flex justify-between items-start">
@@ -161,10 +214,10 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
           </div>
           <div className="text-right">
             <p className={`text-sm ${getItemTextColor(isNew, service.id, 'service')} ${isRejected ? 'line-through' : ''}`}>
-              {service.quantity} x ${ (service.price / service.quantity).toLocaleString() }
+              {displayQuantity} x ${unitPrice.toLocaleString()}
             </p>
             <p className={`text-xs ${isRejected ? 'text-marchant-red line-through' : 'text-muted-foreground'}`}>
-              Total: ${service.price.toLocaleString()}
+              Total: ${displayTotal.toLocaleString()}
             </p>
           </div>
         </div>
@@ -174,6 +227,11 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
 
   const PartItemDisplay = ({ part, isNew }: { part: WorkOrderPart; isNew: boolean }) => {
     const isRejected = isNew && isItemRejected(part.id, 'part');
+    const approvedQuantity = getApprovedQuantity(part.id, 'part', part.quantity);
+    const displayQuantity = quoteStatus === 'partial_reject' && workOrder.quote?.approvedItems ? approvedQuantity : part.quantity;
+    const unitPrice = part.price / part.quantity;
+    const displayTotal = unitPrice * displayQuantity;
+    
     return (
       <div className={`p-3 rounded-lg border-l-4 ${getItemBackgroundColor(isNew, part.id, 'part')} mb-2`}>
         <div className="flex justify-between items-start">
@@ -194,10 +252,10 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
           </div>
           <div className="text-right">
             <p className={`text-sm ${getItemTextColor(isNew, part.id, 'part')} ${isRejected ? 'line-through' : ''}`}>
-              {part.quantity} x ${ (part.price / part.quantity).toLocaleString() }
+              {displayQuantity} x ${unitPrice.toLocaleString()}
             </p>
             <p className={`text-xs ${isRejected ? 'text-marchant-red line-through' : 'text-muted-foreground'}`}>
-              Total: ${part.price.toLocaleString()}
+              Total: ${displayTotal.toLocaleString()}
             </p>
           </div>
         </div>
@@ -224,7 +282,7 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
                 {quoteStatus === 'sent' && 'Cotización Enviada'}
                 {quoteStatus === 'approved' && 'Aprobada'}
                 {quoteStatus === 'rejected' && 'Rechazada'}
-                {quoteStatus === 'partial_reject' && 'Rechazo Parcial'}
+                {quoteStatus === 'partial_reject' && 'Aprobación Parcial'}
             </Badge>
           </div>
         </DialogHeader>
@@ -306,7 +364,7 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuoteResponse('partial_reject')} className="text-orange-700 focus:text-orange-800 focus:bg-orange-50">
                     <AlertTriangle className="h-4 w-4 mr-2" />
-                    Rechazo Parcial
+                    Aprobación Parcial
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuoteResponse('rejected')} className="text-red-700 focus:text-red-800 focus:bg-red-50">
                     <XCircle className="h-4 w-4 mr-2" />
@@ -319,44 +377,91 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
         </div>
       </DialogContent>
       
-      {/* Modal de Rechazo Parcial */}
-      <Dialog open={showPartialRejectModal} onOpenChange={setShowPartialRejectModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      {/* Modal de Aprobación Parcial */}
+      <Dialog open={showPartialApprovalModal} onOpenChange={setShowPartialApprovalModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-orange-600">Seleccionar Trabajos Rechazados</DialogTitle>
-            <DialogDescription>Marca los servicios y piezas que el cliente rechazó</DialogDescription>
+            <DialogTitle className="text-green-600">Seleccionar Trabajos Aprobados</DialogTitle>
+            <DialogDescription>Selecciona qué servicios y piezas aprueba el cliente y en qué cantidad</DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6 py-4">
             {newServices.length > 0 && (
               <div>
                 <h4 className="font-medium mb-3">Servicios Adicionales</h4>
-                <div className="space-y-2">
-                  {newServices.map(service => (
-                    <div key={service.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                      <input
-                        type="checkbox"
-                        id={`service-${service.id}`}
-                        checked={selectedRejectedItems.services.includes(service.id)}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setSelectedRejectedItems(prev => ({
-                            ...prev,
-                            services: isChecked 
-                              ? [...prev.services, service.id]
-                              : prev.services.filter(id => id !== service.id)
-                          }));
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <label htmlFor={`service-${service.id}`} className="flex-1 cursor-pointer">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium">{service.service.name}</span>
-                          <span className="text-sm text-muted-foreground">${service.price.toLocaleString()}</span>
+                <div className="space-y-3">
+                  {newServices.map(service => {
+                    const approvedItem = selectedApprovedItems.services.find(s => s.id === service.id);
+                    const approvedQuantity = approvedItem?.approvedQuantity || 0;
+                    const unitPrice = service.price / service.quantity;
+                    
+                    return (
+                      <div key={service.id} className="p-4 border rounded-lg bg-gray-50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                id={`service-${service.id}`}
+                                checked={approvedQuantity > 0}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  setSelectedApprovedItems(prev => ({
+                                    ...prev,
+                                    services: prev.services.map(s => 
+                                      s.id === service.id 
+                                        ? { ...s, approvedQuantity: isChecked ? service.quantity : 0 }
+                                        : s
+                                    )
+                                  }));
+                                }}
+                                className="h-4 w-4"
+                              />
+                              <label htmlFor={`service-${service.id}`} className="text-sm font-medium cursor-pointer">
+                                {service.service.name}
+                              </label>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Precio unitario: ${unitPrice.toLocaleString()}
+                            </p>
+                            
+                            {approvedQuantity > 0 && (
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600">Cantidad aprobada:</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={service.quantity}
+                                  value={approvedQuantity}
+                                  onChange={(e) => {
+                                    const newQty = Math.min(service.quantity, Math.max(0, parseInt(e.target.value) || 0));
+                                    setSelectedApprovedItems(prev => ({
+                                      ...prev,
+                                      services: prev.services.map(s => 
+                                        s.id === service.id 
+                                          ? { ...s, approvedQuantity: newQty }
+                                          : s
+                                      )
+                                    }));
+                                  }}
+                                  className="w-16 px-2 py-1 text-sm border rounded"
+                                />
+                                <span className="text-sm text-gray-500">de {service.quantity}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">
+                              ${(unitPrice * approvedQuantity).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Total original: ${service.price.toLocaleString()}
+                            </p>
+                          </div>
                         </div>
-                      </label>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -364,42 +469,89 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
             {newParts.length > 0 && (
               <div>
                 <h4 className="font-medium mb-3">Piezas Adicionales</h4>
-                <div className="space-y-2">
-                  {newParts.map(part => (
-                    <div key={part.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                      <input
-                        type="checkbox"
-                        id={`part-${part.id}`}
-                        checked={selectedRejectedItems.parts.includes(part.id)}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setSelectedRejectedItems(prev => ({
-                            ...prev,
-                            parts: isChecked 
-                              ? [...prev.parts, part.id]
-                              : prev.parts.filter(id => id !== part.id)
-                          }));
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <label htmlFor={`part-${part.id}`} className="flex-1 cursor-pointer">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium">{part.part.name}</span>
-                          <span className="text-sm text-muted-foreground">${part.price.toLocaleString()}</span>
+                <div className="space-y-3">
+                  {newParts.map(part => {
+                    const approvedItem = selectedApprovedItems.parts.find(p => p.id === part.id);
+                    const approvedQuantity = approvedItem?.approvedQuantity || 0;
+                    const unitPrice = part.price / part.quantity;
+                    
+                    return (
+                      <div key={part.id} className="p-4 border rounded-lg bg-gray-50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                id={`part-${part.id}`}
+                                checked={approvedQuantity > 0}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  setSelectedApprovedItems(prev => ({
+                                    ...prev,
+                                    parts: prev.parts.map(p => 
+                                      p.id === part.id 
+                                        ? { ...p, approvedQuantity: isChecked ? part.quantity : 0 }
+                                        : p
+                                    )
+                                  }));
+                                }}
+                                className="h-4 w-4"
+                              />
+                              <label htmlFor={`part-${part.id}`} className="text-sm font-medium cursor-pointer">
+                                {part.part.name}
+                              </label>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Precio unitario: ${unitPrice.toLocaleString()}
+                            </p>
+                            
+                            {approvedQuantity > 0 && (
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600">Cantidad aprobada:</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={part.quantity}
+                                  value={approvedQuantity}
+                                  onChange={(e) => {
+                                    const newQty = Math.min(part.quantity, Math.max(0, parseInt(e.target.value) || 0));
+                                    setSelectedApprovedItems(prev => ({
+                                      ...prev,
+                                      parts: prev.parts.map(p => 
+                                        p.id === part.id 
+                                          ? { ...p, approvedQuantity: newQty }
+                                          : p
+                                      )
+                                    }));
+                                  }}
+                                  className="w-16 px-2 py-1 text-sm border rounded"
+                                />
+                                <span className="text-sm text-gray-500">de {part.quantity}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">
+                              ${(unitPrice * approvedQuantity).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Total original: ${part.price.toLocaleString()}
+                            </p>
+                          </div>
                         </div>
-                      </label>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
             
             <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowPartialRejectModal(false)}>
+              <Button variant="outline" onClick={() => setShowPartialApprovalModal(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handlePartialReject} className="bg-orange-600 hover:bg-orange-700">
-                Confirmar Rechazo Parcial
+              <Button onClick={handlePartialApproval} className="bg-green-600 hover:bg-green-700">
+                Confirmar Aprobación Parcial
               </Button>
             </div>
           </div>

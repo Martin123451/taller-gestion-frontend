@@ -58,9 +58,19 @@ const WorkOrderCardComponent = ({ workOrder, isSelected, onSelect }: WorkOrderCa
               <span className="text-xs text-muted-foreground">
                 #{workOrder.id.slice(-6)}
               </span>
-              <p className="text-sm font-semibold text-marchant-green">
-                ${workOrder.totalAmount.toLocaleString()}
-              </p>
+              <div className="text-right">
+                <p className="text-sm font-semibold text-marchant-green">
+                  ${workOrder.totalAmount.toLocaleString()}
+                </p>
+                {workOrder.advancePayment > 0 && (
+                  <div className="text-xs space-y-0.5">
+                    <div className="text-green-600">Abono: ${workOrder.advancePayment.toLocaleString()}</div>
+                    <div className="text-marchant-red font-medium">
+                      A cobrar: ${(workOrder.totalAmount - workOrder.advancePayment).toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             {workOrder.estimatedDeliveryDate && (<p className="text-xs text-muted-foreground text-right mt-1">Entrega: {new Date(workOrder.estimatedDeliveryDate).toLocaleDateString()}</p>)}
           </CardContent>
