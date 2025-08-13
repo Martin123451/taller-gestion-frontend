@@ -37,6 +37,8 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
         isOpen: boolean;
         workOrder?: WorkOrder;
     }>({ isOpen: false });
+    
+    const [showAllDeliveries, setShowAllDeliveries] = useState(false);
 
     const openWorkOrdersCount = workOrders.filter(wo => wo.status === 'open').length;
     const inProgressWorkOrders = workOrders.filter(wo => wo.status === 'in_progress');
@@ -77,20 +79,6 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
         setDeliveryModal({ isOpen: false });
     };
 
-    const handleWorkOrderClick = (workOrder: WorkOrder, event: React.MouseEvent) => {
-        // Si es una ficha que necesita cotización, usar el modal de cotización
-        if (workOrder.needsQuote && inProgressWorkOrdersForQuotes.some(wo => wo.id === workOrder.id)) {
-            onSelectWorkOrderForQuote(workOrder);
-        } else {
-            // Para todas las demás fichas, mostrar modal de detalle
-            event.stopPropagation();
-            setDetailModal({
-                isOpen: true,
-                workOrder
-            });
-        }
-    };
-
     const closeDetailModal = () => {
         setDetailModal({ isOpen: false });
     };
@@ -109,6 +97,20 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
         const hasAdditionalItems = (currentServicesCount + currentPartsCount) > (originalServicesCount + originalPartsCount);
         return hasAdditionalItems;
     });
+
+    const handleWorkOrderClick = (workOrder: WorkOrder, event: React.MouseEvent) => {
+        // Si es una ficha que necesita cotización, usar el modal de cotización
+        if (workOrder.needsQuote && inProgressWorkOrdersForQuotes.some(wo => wo.id === workOrder.id)) {
+            onSelectWorkOrderForQuote(workOrder);
+        } else {
+            // Para todas las demás fichas, mostrar modal de detalle
+            event.stopPropagation();
+            setDetailModal({
+                isOpen: true,
+                workOrder
+            });
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -141,7 +143,11 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
-                            {workOrders.filter(wo => ['open', 'in_progress'].includes(wo.status)).sort((a, b) => (a.estimatedDeliveryDate?.getTime() || Infinity) - (b.estimatedDeliveryDate?.getTime() || Infinity)).slice(0, 5).map(workOrder => {
+                            {(() => {
+                                const upcomingWorkOrders = workOrders.filter(wo => ['open', 'in_progress'].includes(wo.status)).sort((a, b) => (a.estimatedDeliveryDate?.getTime() || Infinity) - (b.estimatedDeliveryDate?.getTime() || Infinity));
+                                const displayedOrders = showAllDeliveries ? upcomingWorkOrders : upcomingWorkOrders.slice(0, 6);
+                                
+                                return displayedOrders.map(workOrder => {
                                 const remainingAmount = workOrder.totalAmount - (workOrder.advancePayment || 0);
                                 
                                 return (
@@ -172,7 +178,30 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
                                         </div>
                                     </div>
                                 )
-                            })}
+                            });
+                            })()}
+                            
+                            {(() => {
+                                const upcomingWorkOrders = workOrders.filter(wo => ['open', 'in_progress'].includes(wo.status));
+                                if (upcomingWorkOrders.length > 6) {
+                                    return (
+                                        <div className="pt-2 border-t">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="w-full text-marchant-green hover:bg-marchant-green-light"
+                                                onClick={() => setShowAllDeliveries(!showAllDeliveries)}
+                                            >
+                                                {showAllDeliveries 
+                                                    ? `Mostrar menos (${upcomingWorkOrders.length - 6} fichas ocultas)` 
+                                                    : `Ver todas las fichas (${upcomingWorkOrders.length - 6} más)`
+                                                }
+                                            </Button>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </div>
                     </CardContent>
                 </Card>
@@ -265,6 +294,9 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <p className="text-sm font-medium text-marchant-green">{workOrder.client.name}</p>
+                                                    {workOrder.client.phone && (
+                                                        <p className="text-xs text-muted-foreground">📞 {workOrder.client.phone}</p>
+                                                    )}
                                                     <p className="text-xs text-muted-foreground">{workOrder.bicycle.brand} {workOrder.bicycle.model}</p>
                                                     
                                                     {/* Fecha de entrega estimada */}
@@ -403,6 +435,7 @@ export const OverviewTab = ({ onNewWorkOrderClick, onSelectWorkOrderForQuote, se
                         <WorkOrderDetail 
                             workOrder={detailModal.workOrder} 
                             onClose={closeDetailModal}
+                            readOnly={detailModal.workOrder.status === 'ready_for_delivery'}
                         />
                     )}
                 </DialogContent>

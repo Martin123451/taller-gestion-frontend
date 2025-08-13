@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
@@ -16,19 +17,25 @@ import { getParts, createPart } from '../../services/parts';
 const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType: 'service' | 'part' }) => {
     const [formData, setFormData] = useState({ 
         name: '', 
-        price: 0, 
+        price: '', 
+        ...(itemType === 'service' && { 
+            description: '' 
+        }),
         ...(itemType === 'part' && { 
-            stock: 0, 
+            stock: '', 
             brand: '', 
             code: '', 
-            costPrice: 0, 
+            costPrice: '', 
             department: '' 
         }) 
     });
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value, type } = e.target;
-        setFormData(prev => ({ ...prev, [id]: type === 'number' ? parseFloat(value) || 0 : value }));
+        setFormData(prev => ({ 
+            ...prev, 
+            [id]: type === 'number' ? (value === '' ? '' : parseFloat(value) || '') : value 
+        }));
     };
 
     return (
@@ -39,33 +46,49 @@ const ItemForm = ({ onSave, itemType }: { onSave: (item: any) => void, itemType:
         </div>
         <div>
             <Label htmlFor="price">Precio</Label>
-            <Input id="price" type="number" value={formData.price} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
+            <Input id="price" type="number" value={formData.price} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} placeholder="Ej: 15000" />
         </div>
+        {itemType === 'service' && (
+            <div>
+                <Label htmlFor="description">Descripción (opcional)</Label>
+                <Textarea id="description" value={(formData as any).description} onChange={handleChange} placeholder="Descripción detallada del servicio..." rows={3} />
+            </div>
+        )}
         {itemType === 'part' && (
             <>
             <div>
                 <Label htmlFor="stock">Stock</Label>
-                <Input id="stock" type="number" value={(formData as PartItem).stock} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
+                <Input id="stock" type="number" value={(formData as PartItem).stock} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} placeholder="Ej: 10" />
             </div>
             <div>
                 <Label htmlFor="brand">Marca</Label>
-                <Input id="brand" value={(formData as PartItem).brand} onChange={handleChange} />
+                <Input id="brand" value={(formData as PartItem).brand} onChange={handleChange} placeholder="Ej: Shimano" />
             </div>
             <div>
                 <Label htmlFor="code">Código</Label>
-                <Input id="code" value={(formData as PartItem).code} onChange={handleChange} />
+                <Input id="code" value={(formData as PartItem).code} onChange={handleChange} placeholder="Ej: SH-001" />
             </div>
             <div>
                 <Label htmlFor="costPrice">Precio Costo</Label>
-                <Input id="costPrice" type="number" value={(formData as PartItem).costPrice} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} />
+                <Input id="costPrice" type="number" value={(formData as PartItem).costPrice} onChange={handleChange} onWheel={(e) => e.currentTarget.blur()} placeholder="Ej: 8000" />
             </div>
             <div>
                 <Label htmlFor="department">Departamento</Label>
-                <Input id="department" value={(formData as PartItem).department} onChange={handleChange} />
+                <Input id="department" value={(formData as PartItem).department} onChange={handleChange} placeholder="Ej: Transmisión" />
             </div>
             </>
         )}
-        <Button onClick={() => onSave(formData)} className="w-full">Guardar</Button>
+        <Button onClick={() => {
+            const processedData = {
+                ...formData,
+                price: formData.price === '' ? 0 : parseFloat(formData.price as string) || 0,
+                ...(itemType === 'part' && {
+                    stock: (formData as any).stock === '' ? 0 : parseFloat((formData as any).stock) || 0,
+                    costPrice: (formData as any).costPrice === '' ? 0 : parseFloat((formData as any).costPrice) || 0
+                })
+            };
+            onSave(processedData);
+        }} className="w-full">Guardar</Button>
         </div>
     );
 };

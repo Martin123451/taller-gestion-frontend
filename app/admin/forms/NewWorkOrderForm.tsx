@@ -9,6 +9,8 @@ import { Textarea } from '../../../components/ui/textarea';
 import { useApp } from '../../../contexts/AppContext';
 import { createWorkOrder } from '../../../services/workOrders';
 import ClientSearchCombobox from '../../../components/ClientSearchCombobox';
+import ServiceSearchCombobox from '../../../components/ServiceSearchCombobox';
+import PartSearchCombobox from '../../../components/PartSearchCombobox';
 import { Plus, Minus, Trash2 } from 'lucide-react';
 import { Client, Bicycle } from '../../../lib/types';
 
@@ -133,7 +135,7 @@ export const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, on
                     <div className="flex-grow"><Label htmlFor="bicycleId">Bicicleta</Label><Select value={newWorkOrder.bicycleId} onValueChange={(value) => setNewWorkOrder({ ...newWorkOrder, bicycleId: value })} disabled={!newWorkOrder.clientId}><SelectTrigger><SelectValue placeholder="Seleccionar bicicleta" /></SelectTrigger><SelectContent>{availableBicycles.map(bicycle => (<SelectItem key={bicycle.id} value={bicycle.id}>{bicycle.brand} {bicycle.model} ({bicycle.color})</SelectItem>))}</SelectContent></Select></div>
                     <Button variant="outline" size="icon" onClick={onShowAddBicycle} disabled={!newWorkOrder.clientId}><Plus className="h-4 w-4" /></Button>
                 </div>
-                <div><Label htmlFor="description">Descripción del Problema</Label><Textarea id="description" value={newWorkOrder.description} onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })} /></div>
+                <div><Label htmlFor="description">Descripción del Trabajo</Label><Textarea id="description" value={newWorkOrder.description} onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })} /></div>
                 <div><Label htmlFor="estimatedDeliveryDate">Fecha de Entrega Estimada</Label><Input id="estimatedDeliveryDate" type="date" value={newWorkOrder.estimatedDeliveryDate} onChange={(e) => setNewWorkOrder({ ...newWorkOrder, estimatedDeliveryDate: e.target.value })} /></div>
                 
                 <Separator />
@@ -142,10 +144,13 @@ export const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, on
                 <div>
                     <div className="flex justify-between items-center mb-3">
                         <h4 className="text-marchant-green">Servicios Requeridos</h4>
-                        <Select onValueChange={addService}>
-                            <SelectTrigger className="w-48"><SelectValue placeholder="Agregar servicio" /></SelectTrigger>
-                            <SelectContent>{state.services?.map(service => (<SelectItem key={service.id} value={service.id}>{service.name} - ${service.price.toLocaleString()}</SelectItem>)) || []}</SelectContent>
-                        </Select>
+                        <ServiceSearchCombobox
+                            services={state.services || []}
+                            selectedServices={selectedServices.map(s => s.serviceId)}
+                            onSelectService={addService}
+                            placeholder="Buscar y agregar servicio..."
+                            className="w-64"
+                        />
                     </div>
                     {selectedServices.map(service => (
                         <div key={service.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-green rounded mb-2 bg-marchant-green-light">
@@ -167,14 +172,13 @@ export const NewWorkOrderForm = ({ closeModal, newWorkOrder, setNewWorkOrder, on
                 <div>
                     <div className="flex justify-between items-center mb-3">
                         <h4 className="text-marchant-green">Piezas Requeridas</h4>
-                        <Select onValueChange={addPart}>
-                            <SelectTrigger className="w-48"><SelectValue placeholder="Agregar pieza" /></SelectTrigger>
-                            <SelectContent>{state.parts?.map(part => (
-                                <SelectItem key={part.id} value={part.id} disabled={part.stock === 0}>
-                                    {part.name} ({part.stock} disp.) - ${part.price.toLocaleString()}
-                                </SelectItem>
-                            )) || []}</SelectContent>
-                        </Select>
+                        <PartSearchCombobox
+                            parts={state.parts || []}
+                            selectedParts={selectedParts.map(p => p.partId)}
+                            onSelectPart={addPart}
+                            placeholder="Buscar y agregar pieza..."
+                            className="w-64"
+                        />
                     </div>
                     {selectedParts.map(part => (
                          <div key={part.id} className="flex items-center justify-between p-3 border-l-4 border-l-marchant-red rounded mb-2 bg-marchant-red-light">

@@ -11,11 +11,14 @@ import { Label } from './ui/label';
 import { Separator } from './ui/separator';
 import { DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Badge } from './ui/badge';
+import ServiceSearchCombobox from './ServiceSearchCombobox';
+import PartSearchCombobox from './PartSearchCombobox';
 import { Play, CheckCircle2, Plus, Minus, AlertTriangle, XCircle, Clock } from 'lucide-react';
 
 interface WorkOrderDetailProps {
   workOrder: WorkOrder;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 interface StockUpdate {
@@ -23,7 +26,7 @@ interface StockUpdate {
   quantityChange: number;
 }
 
-export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
+export default function WorkOrderDetail({ workOrder, onClose, readOnly = false }: WorkOrderDetailProps) {
     const { state, dispatch } = useApp();
     const { currentUser } = useAuthContext();
 
@@ -108,9 +111,11 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           const basePrice = s.service?.price || 0;
           
           // Si es un item con aprobación parcial, usar cantidad aprobada
-          const approvedQuantity = workOrder.quote?.approvedItems?.services.find(approvedService => 
+          const approvedServices = workOrder.quote?.approvedItems?.services || [];
+          const approvedItem = approvedServices.find(approvedService => 
             approvedService.id === serviceListItemId
-          )?.approvedQuantity;
+          );
+          const approvedQuantity = approvedItem?.approvedQuantity;
           
           const displayQuantity = approvedQuantity !== undefined ? approvedQuantity : quantity;
           const displayPrice = basePrice * displayQuantity;
@@ -125,7 +130,8 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
       setParts(parts.map(p => {
         if (p.id === partListItemId) {
           if (quantity > p.quantity) {
-            const originalPart = workOrder.parts.find(op => op.id === partListItemId);
+            // Buscar la parte original para verificar stock disponible
+            const originalPart = workOrder.parts?.find(op => op.id === partListItemId);
             const originalQuantity = originalPart ? originalPart.quantity : 0;
             const freshPartData = freshParts?.find(fp => fp.id === p.partId);
             const availableStock = freshPartData?.stock || 0;
@@ -139,9 +145,11 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           const newQuantity = Math.max(1, quantity);
           
           // Si es un item con aprobación parcial, usar cantidad aprobada
-          const approvedQuantity = workOrder.quote?.approvedItems?.parts.find(approvedPart => 
+          const approvedParts = workOrder.quote?.approvedItems?.parts || [];
+          const approvedItem = approvedParts.find(approvedPart => 
             approvedPart.id === partListItemId
-          )?.approvedQuantity;
+          );
+          const approvedQuantity = approvedItem?.approvedQuantity;
           
           const displayQuantity = approvedQuantity !== undefined ? approvedQuantity : newQuantity;
           const displayPrice = basePrice * displayQuantity;
@@ -291,7 +299,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                     total += service.price; // Items originales siempre cuentan
                 } else {
                     const effectiveQuantity = getEffectiveQuantity(service.id, 'service', service.quantity);
-                    const unitPrice = service.price / service.quantity;
+                    const unitPrice = service.quantity > 0 ? service.price / service.quantity : 0;
                     total += unitPrice * effectiveQuantity;
                 }
             });
@@ -302,7 +310,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                     total += part.price; // Items originales siempre cuentan
                 } else {
                     const effectiveQuantity = getEffectiveQuantity(part.id, 'part', part.quantity);
-                    const unitPrice = part.price / part.quantity;
+                    const unitPrice = part.quantity > 0 ? part.price / part.quantity : 0;
                     total += unitPrice * effectiveQuantity;
                 }
             });
@@ -342,6 +350,14 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
         };
       }
       
+      // En modo solo lectura, items adicionales usan colores suaves pero visibles
+      if (readOnly) {
+        return {
+          border: 'border-l-blue-400',
+          background: 'bg-blue-50'
+        };
+      }
+      
       const status = getItemStatus(itemId, itemType);
       switch (status) {
         case 'approved':
@@ -369,6 +385,11 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
 
 
     const getItemBadge = (itemId: string, itemType: 'service' | 'part') => {
+      // En modo solo lectura, no mostrar badges internos del taller
+      if (readOnly) {
+        return null;
+      }
+      
       const isOriginal = isOriginalItem(itemId, itemType);
       if (isOriginal) {
         return <Badge variant="outline" className="text-xs bg-gray-100">ORIGINAL</Badge>;
@@ -396,7 +417,7 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           </DialogDescription>
         </DialogHeader>
 
-        {workOrder.needsQuote && (
+        {workOrder.needsQuote && !readOnly && (
           <div className="p-4 border rounded-lg bg-blue-50 border-blue-200 mt-4">
             <div className="flex items-center gap-2 mb-2">
               {getQuoteStatus() === 'pending' && <Clock className="h-4 w-4 text-yellow-600" />}
@@ -418,35 +439,28 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
 
         <div className="space-y-4 pt-4">
           <div className="p-4 bg-marchant-green-light rounded-lg">
-            <h4 className="text-marchant-green">Descripción del Problema</h4>
+            <h4 className="text-marchant-green">Descripción del Trabajo</h4>
             <p className="text-sm text-muted-foreground">{workOrder.description}</p>
           </div>
           <Separator />
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-marchant-green">Servicios</h4>
-              <Select onValueChange={addService}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder={state.services.length > 0 ? "Agregar servicio" : "Cargando servicios..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  {state.services.length === 0 ? (
-                    <SelectItem value="no-services" disabled>No hay servicios disponibles</SelectItem>
-                  ) : (
-                    state.services.map(service => (
-                      <SelectItem key={service.id} value={service.id}>
-                        {service.name} - ${service.price.toLocaleString()}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              {!readOnly && (
+                <ServiceSearchCombobox
+                  services={state.services || []}
+                  selectedServices={services.map(s => s.serviceId)}
+                  onSelectService={addService}
+                  placeholder="Buscar y agregar servicio..."
+                  className="w-64"
+                />
+              )}
             </div>
             {services.map(service => {
               const cardClasses = getItemCardClasses(service.id, 'service');
               const effectiveQuantity = getEffectiveQuantity(service.id, 'service', service.quantity);
               const isPartiallyApproved = getQuoteStatus() === 'partial_reject' && !isOriginalItem(service.id, 'service');
-              const canEdit = getQuoteStatus() !== 'partial_reject' || isOriginalItem(service.id, 'service');
+              const canEdit = !readOnly && (getQuoteStatus() !== 'partial_reject' || isOriginalItem(service.id, 'service'));
               
               return (
                 <div key={service.id} className={`flex items-center justify-between p-3 border-l-4 ${cardClasses.border} rounded mb-2 ${cardClasses.background}`}>
@@ -454,13 +468,19 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm">{service.service?.name || 'Servicio no encontrado'}</p>
                     {getItemBadge(service.id, 'service')}
-                    {isPartiallyApproved && effectiveQuantity !== service.quantity && (
+                    {!readOnly && isPartiallyApproved && effectiveQuantity !== service.quantity && (
                       <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">
                         Aprobado: {effectiveQuantity}/{service.quantity}
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">${(service.price / service.quantity).toLocaleString()} c/u</p>
+                  {readOnly && !isOriginalItem(service.id, 'service') ? (
+                    // Para items adicionales en modo solo lectura, mostrar precio total por cantidad aprobada
+                    <p className="text-xs text-muted-foreground">Total: ${((service.price / service.quantity) * effectiveQuantity).toLocaleString()}</p>
+                  ) : (
+                    // Para items originales o modo normal, mostrar precio unitario
+                    <p className="text-xs text-muted-foreground">${(service.price / service.quantity).toLocaleString()} c/u</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {canEdit ? (
@@ -472,9 +492,20 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                     </>
                   ) : (
                     <>
-                      <span className="text-xs text-muted-foreground">Cantidad aprobada:</span>
-                      <span className="w-8 text-center text-sm font-bold text-green-600">{effectiveQuantity}</span>
-                      <span className="text-xs text-muted-foreground">de {service.quantity}</span>
+                      {isOriginalItem(service.id, 'service') ? (
+                        // Para items originales, siempre mostrar cantidad original
+                        <span className="w-8 text-center text-sm">{service.quantity}</span>
+                      ) : readOnly ? (
+                        // Para items adicionales en modo solo lectura, mostrar cantidad aprobada
+                        <span className="w-8 text-center text-sm">{effectiveQuantity}</span>
+                      ) : (
+                        // Para items nuevos con aprobación parcial, mostrar cantidad aprobada
+                        <>
+                          <span className="text-xs text-muted-foreground">Cantidad aprobada:</span>
+                          <span className="w-8 text-center text-sm font-bold text-green-600">{effectiveQuantity}</span>
+                          <span className="text-xs text-muted-foreground">de {service.quantity}</span>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -486,24 +517,21 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-marchant-green">Piezas</h4>
-              <Select onValueChange={addPart} disabled={isLoadingParts}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder={isLoadingParts ? "Cargando..." : "Agregar pieza"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {freshParts?.map(part => (
-                    <SelectItem key={part.id} value={part.id} disabled={part.stock === 0}>
-                      {part.name} ({part.stock} disp.) - ${part.price.toLocaleString()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!readOnly && (
+                <PartSearchCombobox
+                  parts={freshParts || []}
+                  selectedParts={parts.map(p => p.partId)}
+                  onSelectPart={addPart}
+                  placeholder={isLoadingParts ? "Cargando..." : "Buscar y agregar pieza..."}
+                  className="w-64"
+                />
+              )}
             </div>
             {parts.map(part => {
               const cardClasses = getItemCardClasses(part.id, 'part');
               const effectiveQuantity = getEffectiveQuantity(part.id, 'part', part.quantity);
               const isPartiallyApproved = getQuoteStatus() === 'partial_reject' && !isOriginalItem(part.id, 'part');
-              const canEdit = getQuoteStatus() !== 'partial_reject' || isOriginalItem(part.id, 'part');
+              const canEdit = !readOnly && (getQuoteStatus() !== 'partial_reject' || isOriginalItem(part.id, 'part'));
               
               return (
                 <div key={part.id} className={`flex items-center justify-between p-3 border-l-4 ${cardClasses.border} rounded mb-2 ${cardClasses.background}`}>
@@ -511,13 +539,19 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm">{part.part?.name || 'Pieza no encontrada'}</p>
                     {getItemBadge(part.id, 'part')}
-                    {isPartiallyApproved && effectiveQuantity !== part.quantity && (
+                    {!readOnly && isPartiallyApproved && effectiveQuantity !== part.quantity && (
                       <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">
                         Aprobado: {effectiveQuantity}/{part.quantity}
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">${(part.price / part.quantity).toLocaleString()} c/u</p>
+                  {readOnly && !isOriginalItem(part.id, 'part') ? (
+                    // Para items adicionales en modo solo lectura, mostrar precio total por cantidad aprobada
+                    <p className="text-xs text-muted-foreground">Total: ${((part.price / part.quantity) * effectiveQuantity).toLocaleString()}</p>
+                  ) : (
+                    // Para items originales o modo normal, mostrar precio unitario
+                    <p className="text-xs text-muted-foreground">${(part.price / part.quantity).toLocaleString()} c/u</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {canEdit ? (
@@ -529,9 +563,20 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
                     </>
                   ) : (
                     <>
-                      <span className="text-xs text-muted-foreground">Cantidad aprobada:</span>
-                      <span className="w-8 text-center text-sm font-bold text-green-600">{effectiveQuantity}</span>
-                      <span className="text-xs text-muted-foreground">de {part.quantity}</span>
+                      {isOriginalItem(part.id, 'part') ? (
+                        // Para items originales, siempre mostrar cantidad original
+                        <span className="w-8 text-center text-sm">{part.quantity}</span>
+                      ) : readOnly ? (
+                        // Para items adicionales en modo solo lectura, mostrar cantidad aprobada
+                        <span className="w-8 text-center text-sm">{effectiveQuantity}</span>
+                      ) : (
+                        // Para items nuevos con aprobación parcial, mostrar cantidad aprobada
+                        <>
+                          <span className="text-xs text-muted-foreground">Cantidad aprobada:</span>
+                          <span className="w-8 text-center text-sm font-bold text-green-600">{effectiveQuantity}</span>
+                          <span className="text-xs text-muted-foreground">de {part.quantity}</span>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -542,39 +587,48 @@ export default function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailP
           <Separator />
           <div>
             <Label htmlFor="notes" className="text-marchant-green">Notas del Mecánico</Label>
-            <Textarea id="notes" value={mechanicNotes} onChange={(e) => setMechanicNotes(e.target.value)} placeholder="Agregar notas sobre el trabajo realizado..." className="mt-1" />
+            <Textarea 
+              id="notes" 
+              value={mechanicNotes} 
+              onChange={readOnly ? undefined : (e) => setMechanicNotes(e.target.value)} 
+              placeholder={readOnly ? "" : "Agregar notas sobre el trabajo realizado..."} 
+              className="mt-1" 
+              readOnly={readOnly}
+            />
           </div>
           <div className="flex justify-between items-center pt-4 bg-gray-50 p-4 -m-6 mt-4">
             <div>
               <p className="text-sm">Total: <span className="text-lg font-bold text-marchant-green">${totalAmount.toLocaleString()}</span></p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={saveChanges} className="border-marchant-green text-marchant-green hover:bg-marchant-green-light">Guardar Cambios</Button>
-              {workOrder.status === 'open' && (
-                <Button 
-                  onClick={handleStartWorkOrder} 
-                  disabled={!currentUser}
-                  className="bg-marchant-green hover:bg-marchant-green-dark"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Iniciar Trabajo
-                </Button>
-              )}
-              {workOrder.status === 'in_progress' && (
-                <Button 
-                  onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} 
-                  disabled={!canComplete}
-                  className={`${canComplete 
-                    ? 'bg-marchant-red hover:bg-marchant-red-dark' 
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                  title={!canComplete ? 'No se puede completar hasta que la cotización sea respondida' : ''}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Completar
-                </Button>
-              )}
-            </div>
+            {!readOnly && (
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={saveChanges} className="border-marchant-green text-marchant-green hover:bg-marchant-green-light">Guardar Cambios</Button>
+                {workOrder.status === 'open' && (
+                  <Button 
+                    onClick={handleStartWorkOrder} 
+                    disabled={!currentUser}
+                    className="bg-marchant-green hover:bg-marchant-green-dark"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Iniciar Trabajo
+                  </Button>
+                )}
+                {workOrder.status === 'in_progress' && (
+                  <Button 
+                    onClick={() => dispatch({ type: 'COMPLETE_WORK_ORDER', payload: workOrder.id })} 
+                    disabled={!canComplete}
+                    className={`${canComplete 
+                      ? 'bg-marchant-red hover:bg-marchant-red-dark' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={!canComplete ? 'No se puede completar hasta que la cotización sea respondida' : ''}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Completar
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </>

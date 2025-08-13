@@ -85,8 +85,8 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
     }
 
     const approvedItems = itemType === 'service' 
-      ? workOrder.quote.approvedItems.services 
-      : workOrder.quote.approvedItems.parts;
+      ? workOrder.quote.approvedItems.services || []
+      : workOrder.quote.approvedItems.parts || [];
     
     const approvedItem = approvedItems.find(item => item.id === itemId);
     return approvedItem ? approvedItem.approvedQuantity : 0;
@@ -190,9 +190,11 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
   const ServiceItemDisplay = ({ service, isNew }: { service: WorkOrderService; isNew: boolean }) => {
     const isRejected = isNew && isItemRejected(service.id, 'service');
     const approvedQuantity = getApprovedQuantity(service.id, 'service', service.quantity);
-    const displayQuantity = quoteStatus === 'partial_reject' && workOrder.quote?.approvedItems ? approvedQuantity : service.quantity;
+    // Solo usar cantidad aprobada para items nuevos en aprobación parcial
+    const displayQuantity = isNew && quoteStatus === 'partial_reject' && workOrder.quote?.approvedItems ? approvedQuantity : service.quantity;
     const unitPrice = service.price / service.quantity;
-    const displayTotal = unitPrice * displayQuantity;
+    // Si el item está rechazado, el total debe ser 0
+    const displayTotal = isRejected ? 0 : unitPrice * displayQuantity;
     
     return (
       <div className={`p-3 rounded-lg border-l-4 ${getItemBackgroundColor(isNew, service.id, 'service')} mb-2`}>
@@ -228,9 +230,11 @@ export default function QuoteDetailDialog({ workOrder, open, onOpenChange }: Quo
   const PartItemDisplay = ({ part, isNew }: { part: WorkOrderPart; isNew: boolean }) => {
     const isRejected = isNew && isItemRejected(part.id, 'part');
     const approvedQuantity = getApprovedQuantity(part.id, 'part', part.quantity);
-    const displayQuantity = quoteStatus === 'partial_reject' && workOrder.quote?.approvedItems ? approvedQuantity : part.quantity;
+    // Solo usar cantidad aprobada para items nuevos en aprobación parcial
+    const displayQuantity = isNew && quoteStatus === 'partial_reject' && workOrder.quote?.approvedItems ? approvedQuantity : part.quantity;
     const unitPrice = part.price / part.quantity;
-    const displayTotal = unitPrice * displayQuantity;
+    // Si el item está rechazado, el total debe ser 0
+    const displayTotal = isRejected ? 0 : unitPrice * displayQuantity;
     
     return (
       <div className={`p-3 rounded-lg border-l-4 ${getItemBackgroundColor(isNew, part.id, 'part')} mb-2`}>

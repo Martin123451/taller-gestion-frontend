@@ -285,7 +285,36 @@ function appReducer(state: Omit<AppState, 'currentUser'>, action: AppAction): Om
     // Si es rechazo total, volver al monto original pero mantener items para mostrar como rechazados
     if (action.payload.response === 'rejected') {
       newTotalAmount = workOrder.originalAmount || 0;
-      // No eliminamos los items, solo ajustamos el total
+      
+      // IMPORTANTE: Reintegrar stock de piezas adicionales que fueron rechazadas
+      const additionalParts = workOrder.parts.filter(p => {
+        const isOriginal = (workOrder.originalParts || []).some(op => op.id === p.id);
+        return !isOriginal; // Solo piezas adicionales (no originales)
+      });
+      
+      if (additionalParts.length > 0) {
+        setTimeout(() => {
+          additionalParts.forEach(rejectedPart => {
+            const operationKey = `rejected-${action.payload.workOrderId}-${rejectedPart.partId}-${rejectedPart.quantity}`;
+            
+            if (!processedStockReintegrations.has(operationKey)) {
+              processedStockReintegrations.add(operationKey);
+              
+              reintegratePartStock(rejectedPart.partId, rejectedPart.quantity)
+                .then(() => {
+                  console.log(`Stock reintegrado por rechazo total: ${rejectedPart.quantity} unidades de ${rejectedPart.part?.name}`);
+                  setTimeout(() => {
+                    processedStockReintegrations.delete(operationKey);
+                  }, 5000);
+                })
+                .catch((error) => {
+                  console.error('Error al reintegrar stock por rechazo:', error);
+                  processedStockReintegrations.delete(operationKey);
+                });
+            }
+          });
+        }, 0);
+      }
     } 
     // Si es aprobación parcial, calcular el total con la nueva lógica de items aprobados
     else if (action.payload.response === 'partial_reject') {
